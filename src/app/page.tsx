@@ -1,420 +1,193 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
+import MarketCard from "@/components/MarketCard";
+import { useAllMarkets } from "@/hooks/useAllMarkets";
+import "./home.css";
 
 export default function Home() {
-  const [activeSidebarItem, setActiveSidebarItem] = useState('For You');
   const router = useRouter();
+  const { marketLabels, isLoading, nextPage, prevPage, isAtEnd, currentRange } =
+    useAllMarkets();
+
+  const canGoPrev = currentRange.from > BigInt(10204130); // DEPLOY_BLOCK
 
   return (
     <>
       <Navigation />
 
-      {/* Main Container */}
-      <div className="main-container">
-        {/* Left Sidebar */}
-        <aside className="left-sidebar">
-          <div className="sidebar-section">
-            <div className="sidebar-title">Discover</div>
-            {[
-              { icon: '🏠', label: 'For You' },
-              { icon: '🔥', label: 'Trending' },
-              { icon: '✨', label: 'Fresh Takes' },
-              { icon: '⚡', label: 'Closing Soon' },
-            ].map((item) => (
+      <div className="home-container">
+        {/* Hero Section */}
+        <div className="hero-section">
+          <div className="hero-content">
+            <div className="hero-badge">
+              <span className="badge-icon">⚡</span>
+              <span>Use your observation Haki!</span>
+            </div>
+            <h1 className="hero-title">
+              See the
+              <span className="gradient-text"> Future</span>
+            </h1>
+            <p className="hero-subtitle">
+              "Haki is a power that lies within all the world's creatures. To
+              'not doubt'. That is great strength!" — Silvers Rayleigh
+            </p>
+            <div className="hero-actions">
               <button
-                key={item.label}
-                className={`sidebar-item ${activeSidebarItem === item.label ? 'active' : ''}`}
-                onClick={() => setActiveSidebarItem(item.label)}
+                className="hero-btn primary"
+                onClick={() => router.push("/create")}
               >
-                <span className="sidebar-item-icon">{item.icon}</span>
-                {item.label}
+                <span className="btn-icon">✨</span>
+                Create Market
               </button>
-            ))}
+              <button className="hero-btn secondary">
+                <span className="btn-icon">📚</span>
+                Learn How It Works
+              </button>
+            </div>
+
+            {/* Stats */}
+            <div className="hero-stats">
+              <div className="stat-item">
+                <div className="stat-value">{marketLabels.length}</div>
+                <div className="stat-label">Active Markets</div>
+              </div>
+              <div className="stat-divider"></div>
+              <div className="stat-item">
+                <div className="stat-value">24/7</div>
+                <div className="stat-label">Trading</div>
+              </div>
+              <div className="stat-divider"></div>
+              <div className="stat-item">
+                <div className="stat-value">100%</div>
+                <div className="stat-label">On-Chain</div>
+              </div>
+            </div>
           </div>
 
-          <div className="sidebar-section">
-            <div className="sidebar-title">Your Topics</div>
-            {[
-              { icon: '🎬', label: 'Movies & TV' },
-              { icon: '🎮', label: 'Gaming' },
-              { icon: '⚽', label: 'Sports' },
-              { icon: '💼', label: 'Career' },
-              { icon: '🌍', label: 'World Events' },
-            ].map((item) => (
+          {/* Floating Cards Background Effect */}
+          <div className="hero-background">
+            <div className="floating-card card-1"></div>
+            <div className="floating-card card-2"></div>
+            <div className="floating-card card-3"></div>
+          </div>
+        </div>
+
+        {/* Markets Section */}
+        <div className="markets-section">
+          <div className="markets-header">
+            <div className="markets-header-content">
+              <h2 className="section-title">
+                <span className="title-icon">📊</span>
+                Active Markets
+              </h2>
+              <p className="section-subtitle">
+                Explore live prediction markets and start trading
+              </p>
+            </div>
+
+            {/* Pagination Info */}
+            <div className="pagination-info">
+              <div className="block-range">
+                Blocks: {currentRange.from.toString()} →{" "}
+                {currentRange.to?.toString() || "Latest"}
+              </div>
+            </div>
+          </div>
+
+          {/* Markets Grid */}
+          {isLoading ? (
+            <div className="markets-grid">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="skeleton-card-wrapper">
+                  <MarketCard marketLabel={`loading-${i}`} />
+                </div>
+              ))}
+            </div>
+          ) : marketLabels.length > 0 ? (
+            <>
+              <div className="markets-grid">
+                {marketLabels.map((label) => (
+                  <MarketCard key={label} marketLabel={label} />
+                ))}
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="pagination-controls">
+                <button
+                  className="pagination-btn prev"
+                  onClick={prevPage}
+                  disabled={!canGoPrev}
+                >
+                  <span className="pagination-arrow">←</span>
+                  <span className="pagination-text">Previous</span>
+                </button>
+
+                <div className="pagination-dots">
+                  <div className="pagination-dot active"></div>
+                  <div className="pagination-dot"></div>
+                  <div className="pagination-dot"></div>
+                </div>
+
+                <button
+                  className="pagination-btn next"
+                  onClick={nextPage}
+                  disabled={isAtEnd}
+                >
+                  <span className="pagination-text">Next</span>
+                  <span className="pagination-arrow">→</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-icon">📭</div>
+              <h3 className="empty-title">No Markets Found</h3>
+              <p className="empty-text">
+                Be the first to create a prediction market in this block range!
+              </p>
               <button
-                key={item.label}
-                className="sidebar-item"
-                onClick={() => setActiveSidebarItem(item.label)}
+                className="empty-btn"
+                onClick={() => router.push("/create")}
               >
-                <span className="sidebar-item-icon">{item.icon}</span>
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </aside>
-
-        {/* Main Feed */}
-        <main className="main-feed">
-          <div className="feed-header">
-            <h1 className="feed-title">What&apos;s Next?</h1>
-            <p className="feed-subtitle">
-              Predictions, advice, and debates from people who care about being right
-            </p>
-          </div>
-
-          {/* Prediction Card 1 - Movie Recommendation */}
-          <article className="prediction-card">
-            <div className="card-author">
-              <div className="author-avatar">🎬</div>
-              <div className="author-info">
-                <div className="author-name">Sarah Chen</div>
-                <div className="author-interests">🎬 Horror · 🎭 Thriller · 📚 Psychological</div>
-              </div>
-              <div className="card-time">2h ago</div>
-            </div>
-
-            <h2 className="card-question">Which horror movie should I watch tonight?</h2>
-            <p className="card-context">
-              I loved Hereditary and The Witch — looking for something genuinely scary but with
-              substance. Not a fan of cheap jumpscares or torture porn.
-            </p>
-
-            <div className="outcome-options">
-              {[
-                { emoji: '👻', text: 'The Exorcist (1973)', percentage: 42 },
-                { emoji: '🔪', text: 'Sinister', percentage: 31 },
-                { emoji: '🌊', text: 'The Lighthouse', percentage: 18 },
-                { emoji: '👀', text: 'Something else', percentage: 9 },
-              ].map((option) => (
-                <div
-                  key={option.text}
-                  className="outcome-option"
-                  style={{ '--fill-width': `${option.percentage}%` } as React.CSSProperties}
-                >
-                  <div className="outcome-option-content">
-                    <span className="outcome-emoji">{option.emoji}</span>
-                    <span className="outcome-text">{option.text}</span>
-                  </div>
-                  <div className="outcome-belief">
-                    <div className="belief-dots">
-                      {[...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className={`belief-dot ${i < Math.round(option.percentage / 20) ? 'active' : ''}`}
-                        ></div>
-                      ))}
-                    </div>
-                    <span className="belief-text">{option.percentage}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="card-actions">
-              <div className="action-buttons">
-                <button className="action-btn">
-                  <span>💬</span> 47 comments
-                </button>
-                <button className="action-btn">
-                  <span>👍</span> Agree
-                </button>
-                <button className="action-btn">
-                  <span>⭐</span> Save
-                </button>
-              </div>
-              <div className="credibility-badge">
-                <span>✓</span> Horror fans agree
-              </div>
-            </div>
-          </article>
-
-          {/* Prediction Card 2 - Sports */}
-          <article className="prediction-card">
-            <div className="card-author">
-              <div
-                className="author-avatar"
-                style={{ background: 'linear-gradient(135deg, #fbbf24, #f59e0b)' }}
-              >
-                🏏
-              </div>
-              <div className="author-info">
-                <div className="author-name">Raj Patel</div>
-                <div className="author-interests">🏏 Cricket · ⚽ Football · 📊 Stats Nerd</div>
-              </div>
-              <div className="card-time">5h ago</div>
-            </div>
-
-            <h2 className="card-question">Will India win the next Test match vs Australia?</h2>
-            <p className="card-context">
-              BGT 2026, third test at Sydney. India needs this to stay in the series. Pitch
-              historically favors spin.
-            </p>
-
-            <div className="outcome-options">
-              {[
-                { emoji: '🇮🇳', text: 'India wins', percentage: 58 },
-                { emoji: '🇦🇺', text: 'Australia wins', percentage: 28 },
-                { emoji: '🤝', text: 'Draw', percentage: 14 },
-              ].map((option) => (
-                <div
-                  key={option.text}
-                  className="outcome-option"
-                  style={{ '--fill-width': `${option.percentage}%` } as React.CSSProperties}
-                >
-                  <div className="outcome-option-content">
-                    <span className="outcome-emoji">{option.emoji}</span>
-                    <span className="outcome-text">{option.text}</span>
-                  </div>
-                  <div className="outcome-belief">
-                    <div className="belief-dots">
-                      {[...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className={`belief-dot ${i < Math.round(option.percentage / 20) ? 'active' : ''}`}
-                        ></div>
-                      ))}
-                    </div>
-                    <span className="belief-text">{option.percentage}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="card-actions">
-              <div className="action-buttons">
-                <button className="action-btn">
-                  <span>💬</span> 124 comments
-                </button>
-                <button className="action-btn">
-                  <span>👍</span> Agree
-                </button>
-                <button className="action-btn">
-                  <span>⭐</span> Save
-                </button>
-              </div>
-              <div className="credibility-badge">
-                <span>🔥</span> Trending in Sports
-              </div>
-            </div>
-          </article>
-
-          {/* Prediction Card 3 - Career Advice */}
-          <article className="prediction-card">
-            <div className="card-author">
-              <div
-                className="author-avatar"
-                style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)' }}
-              >
-                💼
-              </div>
-              <div className="author-info">
-                <div className="author-name">Alex Kim</div>
-                <div className="author-interests">💼 Career · 💻 Tech · 🚀 Startups</div>
-              </div>
-              <div className="card-time">1d ago</div>
-            </div>
-
-            <h2 className="card-question">Should I take the startup offer or stay at BigCo?</h2>
-            <p className="card-context">
-              Got an offer from a Series A startup (0.2% equity, $140k) vs staying at current FAANG
-              role ($220k TC). I&apos;m 28, no dependents, want to learn fast.
-            </p>
-
-            <div className="outcome-options">
-              {[
-                { emoji: '🚀', text: 'Take the startup offer', percentage: 67 },
-                { emoji: '🏢', text: 'Stay at BigCo', percentage: 23 },
-                { emoji: '🎯', text: 'Keep interviewing', percentage: 10 },
-              ].map((option) => (
-                <div
-                  key={option.text}
-                  className="outcome-option"
-                  style={{ '--fill-width': `${option.percentage}%` } as React.CSSProperties}
-                >
-                  <div className="outcome-option-content">
-                    <span className="outcome-emoji">{option.emoji}</span>
-                    <span className="outcome-text">{option.text}</span>
-                  </div>
-                  <div className="outcome-belief">
-                    <div className="belief-dots">
-                      {[...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className={`belief-dot ${i < Math.round(option.percentage / 20) ? 'active' : ''}`}
-                        ></div>
-                      ))}
-                    </div>
-                    <span className="belief-text">{option.percentage}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="card-actions">
-              <div className="action-buttons">
-                <button className="action-btn">
-                  <span>💬</span> 89 comments
-                </button>
-                <button className="action-btn">
-                  <span>👍</span> Agree
-                </button>
-                <button className="action-btn">
-                  <span>⭐</span> Save
-                </button>
-              </div>
-              <div className="credibility-badge">
-                <span>✓</span> Founders agree
-              </div>
-            </div>
-          </article>
-
-          {/* Prediction Card 4 - Gaming */}
-          <article className="prediction-card">
-            <div className="card-author">
-              <div
-                className="author-avatar"
-                style={{ background: 'linear-gradient(135deg, #00d4aa, #00a0aa)' }}
-              >
-                🎮
-              </div>
-              <div className="author-info">
-                <div className="author-name">Maya Rodriguez</div>
-                <div className="author-interests">🎮 RPGs · 🗡️ Souls-like · 🏆 Completionist</div>
-              </div>
-              <div className="card-time">6h ago</div>
-            </div>
-
-            <h2 className="card-question">Is Elden Ring worth starting in 2026?</h2>
-            <p className="card-context">
-              Never played a FromSoft game before. Friends say it&apos;s amazing but super hard. I
-              have ~20 hours/week to game. Should I dive in or is the hype over?
-            </p>
-
-            <div className="outcome-options">
-              {[
-                { emoji: '⚔️', text: 'Absolutely worth it', percentage: 81 },
-                { emoji: '⏰', text: 'Wait for sale', percentage: 12 },
-                { emoji: '❌', text: 'Not worth the time', percentage: 7 },
-              ].map((option) => (
-                <div
-                  key={option.text}
-                  className="outcome-option"
-                  style={{ '--fill-width': `${option.percentage}%` } as React.CSSProperties}
-                >
-                  <div className="outcome-option-content">
-                    <span className="outcome-emoji">{option.emoji}</span>
-                    <span className="outcome-text">{option.text}</span>
-                  </div>
-                  <div className="outcome-belief">
-                    <div className="belief-dots">
-                      {[...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className={`belief-dot ${i < Math.round(option.percentage / 20) ? 'active' : ''}`}
-                        ></div>
-                      ))}
-                    </div>
-                    <span className="belief-text">{option.percentage}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="card-actions">
-              <div className="action-buttons">
-                <button className="action-btn">
-                  <span>💬</span> 203 comments
-                </button>
-                <button className="action-btn">
-                  <span>👍</span> Agree
-                </button>
-                <button className="action-btn">
-                  <span>⭐</span> Save
-                </button>
-              </div>
-              <div className="credibility-badge">
-                <span>✓</span> RPG veterans agree
-              </div>
-            </div>
-          </article>
-        </main>
-
-        {/* Right Sidebar */}
-        <aside className="right-sidebar">
-          {/* Create Prediction Card */}
-          <div className="create-prediction-card" onClick={() => router.push('/create')}>
-            <div className="create-card-content">
-              <div className="create-icon-wrapper">
-                <div className="create-icon">✨</div>
-              </div>
-              <h3 className="create-card-title">Create Prediction</h3>
-              <p className="create-card-subtitle">Share your insights and predictions with the community</p>
-              <button className="create-card-btn">
-                <span className="create-btn-icon">+</span>
-                New Prediction
+                <span className="btn-icon">✨</span>
+                Create First Market
               </button>
             </div>
-          </div>
+          )}
+        </div>
 
-          {/* Quick Stats */}
-          <div className="sidebar-widget stats-widget">
-            <h3 className="widget-title">Your Activity</h3>
-            <div className="quick-stats-grid">
-              <div className="quick-stat">
-                <div className="quick-stat-value">12</div>
-                <div className="quick-stat-label">Active</div>
-              </div>
-              <div className="quick-stat">
-                <div className="quick-stat-value">73%</div>
-                <div className="quick-stat-label">Win Rate</div>
-              </div>
-              <div className="quick-stat">
-                <div className="quick-stat-value">8</div>
-                <div className="quick-stat-label">Streak</div>
-              </div>
+        {/* Features Section */}
+        <div className="features-section">
+          <h2 className="section-title centered">Why Haki?</h2>
+          <div className="features-grid">
+            <div className="feature-card">
+              <div className="feature-icon">🔒</div>
+              <h3 className="feature-title">Trustless</h3>
+              <p className="feature-description">
+                All markets are governed by smart contracts. No central
+                authority can manipulate outcomes.
+              </p>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon">⚡</div>
+              <h3 className="feature-title">Instant Settlement</h3>
+              <p className="feature-description">
+                Trade executes immediately on-chain. Get your winnings as soon
+                as the market resolves.
+              </p>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon">🌐</div>
+              <h3 className="feature-title">Permissionless</h3>
+              <p className="feature-description">
+                Anyone can create a market on anything. No approval needed, no
+                restrictions.
+              </p>
             </div>
           </div>
-
-          {/* Suggested Users */}
-          <div className="sidebar-widget">
-            <h3 className="widget-title">Smart People to Follow</h3>
-
-            {[
-              {
-                emoji: '🎯',
-                name: 'David Park',
-                expertise: '📊 Economics · 92% accurate',
-                gradient: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
-              },
-              {
-                emoji: '🧠',
-                name: 'Lisa Chen',
-                expertise: '🔬 Science · 88% accurate',
-                gradient: 'linear-gradient(135deg, #a78bfa, #818cf8)',
-              },
-              {
-                emoji: '⚡',
-                name: 'Marcus Johnson',
-                expertise: '⚽ Sports · 85% accurate',
-                gradient: 'linear-gradient(135deg, #00d4aa, #00a0aa)',
-              },
-            ].map((user, index) => (
-              <div key={index} className="suggested-user">
-                <div className="suggested-avatar" style={{ background: user.gradient }}>
-                  {user.emoji}
-                </div>
-                <div className="suggested-info">
-                  <div className="suggested-name">{user.name}</div>
-                  <div className="suggested-expertise">{user.expertise}</div>
-                </div>
-                <button className="follow-btn">Follow</button>
-              </div>
-            ))}
-          </div>
-        </aside>
+        </div>
       </div>
     </>
   );

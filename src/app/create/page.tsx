@@ -3,67 +3,67 @@
 import { useState } from 'react';
 import Navigation from '@/components/Navigation';
 import './create.css';
+import { useHakiContract } from "@/hooks/useHakiContract";
 
-interface OutcomeOption {
+interface Option {
   id: string;
-  emoji: string;
   text: string;
 }
 
-const EMOJI_SUGGESTIONS = [
-  '🎬', '🎮', '⚽', '🏀', '🎯', '🎲', '🎪', '🎨',
-  '🚀', '💡', '⭐', '🔥', '✨', '💎', '🏆', '🎭',
-  '🌟', '💫', '⚡', '🌈', '🎵', '📚', '💼', '🌍',
-  '🏃', '🎤', '🎸', '🎹', '🎺', '🎻', '🥁', '🎧',
-  '📱', '💻', '🖥️', '⌚', '📷', '🎥', '📺', '🎞️',
-  '✅', '❌', '⭕', '🔴', '🟢', '🟡', '🔵', '🟣',
-];
-
-const CATEGORIES = [
-  { id: 'movies', label: 'Movies & TV', emoji: '🎬', gradient: 'linear-gradient(135deg, #a78bfa, #818cf8)' },
-  { id: 'gaming', label: 'Gaming', emoji: '🎮', gradient: 'linear-gradient(135deg, #00d4aa, #00a0aa)' },
-  { id: 'sports', label: 'Sports', emoji: '⚽', gradient: 'linear-gradient(135deg, #fbbf24, #f59e0b)' },
-  { id: 'tech', label: 'Technology', emoji: '💻', gradient: 'linear-gradient(135deg, #ff6b4a, #ff8566)' },
-  { id: 'career', label: 'Career', emoji: '💼', gradient: 'linear-gradient(135deg, #a78bfa, #818cf8)' },
-  { id: 'world', label: 'World Events', emoji: '🌍', gradient: 'linear-gradient(135deg, #00d4aa, #00a0aa)' },
-  { id: 'lifestyle', label: 'Lifestyle', emoji: '✨', gradient: 'linear-gradient(135deg, #fbbf24, #f59e0b)' },
-  { id: 'science', label: 'Science', emoji: '🔬', gradient: 'linear-gradient(135deg, #ff6b4a, #00d4aa)' },
-];
-
 export default function CreatePage() {
-  const [question, setQuestion] = useState('');
-  const [context, setContext] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [closeDate, setCloseDate] = useState('');
-  const [outcomes, setOutcomes] = useState<OutcomeOption[]>([
-    { id: '1', emoji: '✅', text: '' },
-    { id: '2', emoji: '❌', text: '' },
+  const [label, setLabel] = useState("");
+  const [description, setDescription] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [options, setOptions] = useState<Option[]>([
+    { id: "1", text: "" },
+    { id: "2", text: "" },
   ]);
-  const [activeEmojiPicker, setActiveEmojiPicker] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
+  const { createMarket, isLoading } = useHakiContract();
 
-  const addOutcome = () => {
-    if (outcomes.length < 6) {
-      setOutcomes([
-        ...outcomes,
-        { id: Date.now().toString(), emoji: '⭕', text: '' },
+  const addOption = () => {
+    if (options.length < 6) {
+      setOptions([
+        ...options,
+        {
+          id: (Number(options[options.length - 1].id) + 1).toString(),
+          text: "",
+        },
       ]);
     }
   };
 
-  const removeOutcome = (id: string) => {
-    if (outcomes.length > 2) {
-      setOutcomes(outcomes.filter((o) => o.id !== id));
+  const removeOption = (id: string) => {
+    if (options.length > 2) {
+      setOptions(options.filter((o) => o.id !== id));
     }
   };
 
-  const updateOutcome = (id: string, field: 'emoji' | 'text', value: string) => {
-    setOutcomes(
-      outcomes.map((o) => (o.id === id ? { ...o, [field]: value } : o))
-    );
+  const updateOption = (id: string, value: string) => {
+    setOptions(options.map((o) => (o.id === id ? { ...o, text: value } : o)));
   };
 
-  const selectedCategoryData = CATEGORIES.find((c) => c.id === selectedCategory);
+  const handleSubmit = async () => {
+    if (
+      !label ||
+      !description ||
+      options.filter((o) => o.text.trim()).length < 2 ||
+      !expiry
+    ) {
+      alert("Please fill in label, description, and at least 2 options");
+      return;
+    }
+    const formattedOptions = options
+      .map((opt) => opt.text.trim())
+      .filter((text) => text !== "")
+      .join(",");
+    const epochTimestamp = Math.floor(new Date(expiry).getTime() / 1000);
+    try {
+      createMarket(label, description, formattedOptions, epochTimestamp);
+    } catch (error) {
+      console.error("Failed to create market:", error);
+    }
+  };
 
   return (
     <>
@@ -74,128 +74,81 @@ export default function CreatePage() {
         {/* Form Panel */}
         <div className="form-panel">
           <div className="form-header">
-            <h1 className="form-title">Create a Prediction</h1>
+            <h1 className="form-title">Create Market</h1>
             <p className="form-subtitle">
-              Ask a question, present the options, and let the community weigh in
+              Deploy a new prediction market on-chain
             </p>
           </div>
 
           <div className="form-content">
-            {/* Question Input */}
+            {/* Label Input */}
             <div className="form-group">
               <label className="form-label">
-                Your Question
-                <span className="label-badge">Required</span>
+                Market Label
+                <span className="label-badge required">Required</span>
               </label>
-              <input
-                type="text"
-                className="form-input large"
-                placeholder="What's your question or prediction?"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                maxLength={120}
-              />
-              <div className="char-count">{question.length}/120</div>
+              <div className="label-input-wrapper">
+                <input
+                  type="text"
+                  className="form-input label-input"
+                  placeholder="bitcoin-2026"
+                  value={label}
+                  onChange={(e) =>
+                    setLabel(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""),
+                    )
+                  }
+                  maxLength={32}
+                />
+                <div className="label-suffix">.haki.eth</div>
+              </div>
+              <p className="form-hint">
+                Lowercase letters, numbers, and hyphens only
+              </p>
+              <div className="char-count">{label.length}/32</div>
             </div>
 
-            {/* Context Input */}
+            {/* Description Input */}
             <div className="form-group">
               <label className="form-label">
-                Context & Details
-                <span className="label-badge">Optional</span>
+                Market Description
+                <span className="label-badge required">Required</span>
               </label>
               <textarea
                 className="form-textarea"
-                placeholder="Provide background, constraints, or details that help people make an informed prediction..."
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
+                placeholder="Describe the market conditions, resolution criteria, and any important details..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 maxLength={500}
-                rows={4}
+                rows={5}
               />
-              <div className="char-count">{context.length}/500</div>
+              <div className="char-count">{description.length}/500</div>
             </div>
 
-            {/* Category Selection */}
+            {/* Options */}
             <div className="form-group">
               <label className="form-label">
-                Category
-                <span className="label-badge">Required</span>
+                Market Options
+                <span className="label-badge">{options.length} options</span>
               </label>
-              <div className="category-grid">
-                {CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.id}
-                    className={`category-chip ${selectedCategory === cat.id ? 'active' : ''}`}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    style={
-                      selectedCategory === cat.id
-                        ? { background: cat.gradient }
-                        : undefined
-                    }
-                  >
-                    <span className="category-emoji">{cat.emoji}</span>
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Outcome Options */}
-            <div className="form-group">
-              <label className="form-label">
-                Outcome Options
-                <span className="label-badge">{outcomes.length} options</span>
-              </label>
-              <div className="outcomes-list">
-                {outcomes.map((outcome, index) => (
-                  <div key={outcome.id} className="outcome-builder">
-                    <div className="outcome-number">{index + 1}</div>
-
-                    <div className="emoji-picker-wrapper">
-                      <button
-                        className="emoji-trigger"
-                        onClick={() =>
-                          setActiveEmojiPicker(
-                            activeEmojiPicker === outcome.id ? null : outcome.id
-                          )
-                        }
-                      >
-                        {outcome.emoji}
-                      </button>
-
-                      {activeEmojiPicker === outcome.id && (
-                        <div className="emoji-picker">
-                          {EMOJI_SUGGESTIONS.map((emoji) => (
-                            <button
-                              key={emoji}
-                              className="emoji-option"
-                              onClick={() => {
-                                updateOutcome(outcome.id, 'emoji', emoji);
-                                setActiveEmojiPicker(null);
-                              }}
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+              <div className="options-list">
+                {options.map((option, index) => (
+                  <div key={option.id} className="option-builder">
+                    <div className="option-number">{index + 1}</div>
 
                     <input
                       type="text"
-                      className="outcome-input"
+                      className="option-input"
                       placeholder={`Option ${index + 1}`}
-                      value={outcome.text}
-                      onChange={(e) =>
-                        updateOutcome(outcome.id, 'text', e.target.value)
-                      }
+                      value={option.text}
+                      onChange={(e) => updateOption(option.id, e.target.value)}
                       maxLength={60}
                     />
 
-                    {outcomes.length > 2 && (
+                    {options.length > 2 && (
                       <button
-                        className="remove-outcome-btn"
-                        onClick={() => removeOutcome(outcome.id)}
+                        className="remove-option-btn"
+                        onClick={() => removeOption(option.id)}
                       >
                         ×
                       </button>
@@ -203,37 +156,49 @@ export default function CreatePage() {
                   </div>
                 ))}
 
-                {outcomes.length < 6 && (
-                  <button className="add-outcome-btn" onClick={addOutcome}>
+                {options.length < 6 && (
+                  <button className="add-option-btn" onClick={addOption}>
                     <span className="add-icon">+</span>
-                    Add another option
+                    Add option
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Close Date */}
+            {/* Expiry Date */}
             <div className="form-group">
               <label className="form-label">
-                Close Date
+                Market Expiry
                 <span className="label-badge">Optional</span>
               </label>
               <input
                 type="datetime-local"
                 className="form-input"
-                value={closeDate}
-                onChange={(e) => setCloseDate(e.target.value)}
+                value={expiry}
+                onChange={(e) => setExpiry(e.target.value)}
               />
               <p className="form-hint">
-                When should predictions close? Leave empty for no deadline.
+                When should the market close? Leave empty for indefinite.
               </p>
             </div>
 
             {/* Submit Button */}
-            <button className="submit-btn">
-              <span className="submit-icon">✨</span>
-              Publish Prediction
-              <div className="submit-glow"></div>
+            <button
+              className="submit-btn"
+              onClick={handleSubmit}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <span className="submit-icon loading">⟳</span>
+                  Deploying...
+                </>
+              ) : (
+                <>
+                  <span className="submit-icon">→</span>
+                  Deploy Market
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -247,115 +212,88 @@ export default function CreatePage() {
                 className="preview-toggle"
                 onClick={() => setShowPreview(!showPreview)}
               >
-                {showPreview ? '👁️' : '👁️‍🗨️'}
+                {showPreview ? "○" : "●"}
               </button>
             </div>
 
             {showPreview && (
               <div className="preview-card">
+                {/* Market Label Badge */}
+                {label && (
+                  <div className="market-label-badge">
+                    <span className="label-dot">●</span>
+                    <span className="label-text">{label}.haki.eth</span>
+                  </div>
+                )}
+
                 {/* Preview Author */}
                 <div className="preview-author">
-                  <div
-                    className="preview-avatar"
-                    style={{
-                      background: selectedCategoryData?.gradient || 'linear-gradient(135deg, #a78bfa, #818cf8)',
-                    }}
-                  >
-                    {selectedCategoryData?.emoji || '✨'}
+                  <div className="preview-avatar">
+                    <span className="avatar-icon">⬢</span>
                   </div>
                   <div className="preview-author-info">
-                    <div className="preview-author-name">You</div>
-                    <div className="preview-author-category">
-                      {selectedCategoryData?.label || 'Select a category'}
-                    </div>
+                    <div className="preview-author-name">Your Wallet</div>
+                    <div className="preview-author-time">Just now</div>
                   </div>
-                  <div className="preview-time">Just now</div>
                 </div>
 
-                {/* Preview Question */}
-                <h2 className="preview-question">
-                  {question || 'Your question will appear here...'}
-                </h2>
-
-                {context && <p className="preview-context">{context}</p>}
+                {/* Preview Description */}
+                <p className="preview-description">
+                  {description || "Your market description will appear here..."}
+                </p>
 
                 {/* Preview Options */}
-                {outcomes.filter((o) => o.text.trim()).length > 0 && (
-                  <div className="preview-outcomes">
-                    {outcomes
+                {options.filter((o) => o.text.trim()).length > 0 ? (
+                  <div className="preview-options">
+                    {options
                       .filter((o) => o.text.trim())
-                      .map((outcome, index) => (
-                        <div
-                          key={outcome.id}
-                          className="preview-outcome"
-                          style={{
-                            '--preview-fill': `${Math.max(0, 60 - index * 15)}%`,
-                          } as React.CSSProperties}
-                        >
-                          <div className="preview-outcome-content">
-                            <span className="preview-outcome-emoji">
-                              {outcome.emoji}
-                            </span>
-                            <span className="preview-outcome-text">
-                              {outcome.text}
+                      .map((option, index) => (
+                        <div key={option.id} className="preview-option">
+                          <div className="preview-option-content">
+                            <span className="preview-option-indicator">▸</span>
+                            <span className="preview-option-text">
+                              {option.text}
                             </span>
                           </div>
-                          <div className="preview-belief">
-                            <div className="preview-belief-dots">
-                              {[...Array(5)].map((_, i) => (
-                                <div
-                                  key={i}
-                                  className={`preview-belief-dot ${
-                                    i < 3 - index ? 'active' : ''
-                                  }`}
-                                ></div>
-                              ))}
-                            </div>
-                            <span className="preview-belief-text">
-                              {Math.max(0, 60 - index * 15)}%
-                            </span>
+                          <div className="preview-percentage">
+                            {Math.max(0, 50 - index * 10)}%
                           </div>
                         </div>
                       ))}
                   </div>
+                ) : (
+                  <div className="preview-empty">
+                    <div className="preview-empty-icon">◇</div>
+                    <p className="preview-empty-text">
+                      Add options to see market preview
+                    </p>
+                  </div>
                 )}
 
-                {/* Preview Actions */}
-                <div className="preview-actions">
-                  <div className="preview-action-buttons">
-                    <button className="preview-action-btn">
-                      <span>💬</span> Comment
-                    </button>
-                    <button className="preview-action-btn">
-                      <span>👍</span> Agree
-                    </button>
-                    <button className="preview-action-btn">
-                      <span>⭐</span> Save
-                    </button>
-                  </div>
-                </div>
-
-                {/* Empty State */}
-                {outcomes.filter((o) => o.text.trim()).length === 0 && (
-                  <div className="preview-empty">
-                    <div className="preview-empty-icon">🎯</div>
-                    <p className="preview-empty-text">
-                      Add outcome options to see your prediction come to life
-                    </p>
+                {/* Preview Footer */}
+                {expiry && (
+                  <div className="preview-footer">
+                    <span className="footer-label">Expires</span>
+                    <span className="footer-value">
+                      {new Date(expiry).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Tips Card */}
-            <div className="tips-card">
-              <h4 className="tips-title">💡 Pro Tips</h4>
-              <ul className="tips-list">
-                <li>Be specific and clear in your question</li>
-                <li>Provide enough context for informed predictions</li>
-                <li>Use emojis to make options visually distinct</li>
-                <li>Keep options mutually exclusive</li>
-                <li>Set a close date for time-sensitive predictions</li>
+            {/* Info Card */}
+            <div className="info-card">
+              <h4 className="info-title">⚡ Requirements</h4>
+              <ul className="info-list">
+                <li>Unique market label (lowercase, alphanumeric)</li>
+                <li>Clear, unambiguous description</li>
+                <li>At least 2 mutually exclusive options</li>
+                <li>Gas fees required for on-chain deployment</li>
               </ul>
             </div>
           </div>
