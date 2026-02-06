@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from "react";
 import Navigation from '@/components/Navigation';
+import { useYellowActions } from "@/hooks/yellow/useYellowActions";
 import './profile.css';
-
+import { useYellow } from "@/context/YellowProvider";
+import { useAppKitAccount } from "@reown/appkit/react";
+import { Address } from "viem";
 interface Transaction {
   id: string;
   type: 'win' | 'loss' | 'deposit' | 'withdraw';
@@ -23,15 +26,6 @@ interface Prediction {
   profit?: number;
 }
 
-interface Achievement {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-  unlocked: boolean;
-  progress?: number;
-  total?: number;
-}
 
 const TRANSACTIONS: Transaction[] = [
   { id: '1', type: 'win', amount: 245.50, description: 'India vs Australia prediction', timestamp: '2h ago' },
@@ -97,17 +91,22 @@ const PREDICTION_HISTORY: Prediction[] = [
   },
 ];
 
-const ACHIEVEMENTS: Achievement[] = [
-  { id: '1', title: 'First Win', description: 'Won your first prediction', icon: '🏆', unlocked: true },
-  { id: '2', title: 'Hot Streak', description: 'Win 5 predictions in a row', icon: '🔥', unlocked: true },
-  { id: '3', title: 'Crowd Favorite', description: 'Get 1000 followers', icon: '⭐', unlocked: true },
-  { id: '4', title: 'Oracle', description: 'Reach 90% accuracy rate', icon: '🔮', unlocked: false, progress: 73, total: 90 },
-  { id: '5', title: 'High Roller', description: 'Earn 10,000 in total', icon: '💎', unlocked: false, progress: 6845, total: 10000 },
-  { id: '6', title: 'Influencer', description: 'Influence 100k participants', icon: '📢', unlocked: false, progress: 42300, total: 100000 },
-];
+
 
 export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<'active' | 'history' | 'achievements'>('active');
+  const { getBalance, balance, asset, isLoading } = useYellowActions();
+  const { sessionSigner, status } = useYellow();
+  const { address } = useAppKitAccount();
+  useEffect(() => {
+    console.log(status);
+    if (status === "active" && address && sessionSigner) {
+      getBalance(address as Address, sessionSigner);
+    }
+  }, [status, address, sessionSigner, getBalance]);
+  useEffect(() => {
+    console.log(balance, asset);
+  }, [balance, asset]);
 
   return (
     <>
@@ -132,7 +131,8 @@ export default function ProfilePage() {
               <div className="profile-info">
                 <h1 className="profile-name">Mani Brar</h1>
                 <p className="profile-bio">
-                  Tech enthusiast, sports fanatic, movie buff. Here to make predictions that matter.
+                  Tech enthusiast, sports fanatic, movie buff. Here to make
+                  predictions that matter.
                 </p>
                 <button className="edit-profile-btn">
                   <span>✏️</span>
@@ -170,126 +170,126 @@ export default function ProfilePage() {
           <div className="dashboard-top">
             {/* Balance Card */}
             <div className="balance-card">
-            <div className="balance-header">
-              <h3 className="balance-title">
-                <span className="balance-icon">💰</span>
-                Wallet Balance
-              </h3>
-              <div className="balance-actions">
-                <button className="balance-action-btn deposit">
-                  <span>+</span> Deposit
-                </button>
-                <button className="balance-action-btn withdraw">
-                  <span>↑</span> Withdraw
-                </button>
+              <div className="balance-header">
+                <h3 className="balance-title">
+                  <span className="balance-icon">💰</span>
+                  Wallet Balance
+                </h3>
+                <div className="balance-actions">
+                  <button className="balance-action-btn deposit">
+                    <span>+</span> Deposit
+                  </button>
+                  <button className="balance-action-btn withdraw">
+                    <span>↑</span> Withdraw
+                  </button>
+                </div>
+              </div>
+
+              <div className="balance-amount">
+                <div className="currency-symbol">$</div>
+                <div className="amount-value">
+                  {isLoading ? "Loading..." : balance}
+                </div>
+                <p>{asset}</p>
+              </div>
+
+              <div className="balance-change positive">
+                <span className="change-icon">↗</span>
+                <span className="change-text">+$373.50 this week</span>
+              </div>
+
+              <div className="recent-transactions">
+                <h4 className="transactions-title">Recent Activity</h4>
+                <div className="transactions-list">
+                  {TRANSACTIONS.slice(0, 4).map((tx) => (
+                    <div key={tx.id} className={`transaction-item ${tx.type}`}>
+                      <div className="transaction-icon">
+                        {tx.type === "win" && "💰"}
+                        {tx.type === "loss" && "📉"}
+                        {tx.type === "deposit" && "⬇️"}
+                        {tx.type === "withdraw" && "⬆️"}
+                      </div>
+                      <div className="transaction-details">
+                        <div className="transaction-description">
+                          {tx.description}
+                        </div>
+                        <div className="transaction-time">{tx.timestamp}</div>
+                      </div>
+                      <div
+                        className={`transaction-amount ${tx.amount > 0 ? "positive" : "negative"}`}
+                      >
+                        {tx.amount > 0 ? "+" : ""}$
+                        {Math.abs(tx.amount).toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="balance-amount">
-              <div className="currency-symbol">$</div>
-              <div className="amount-value">6,845.75</div>
-            </div>
+            {/* Stats Cards */}
+            <div className="stats-cards">
+              <div className="stat-card">
+                <div className="stat-card-icon">📊</div>
+                <div className="stat-card-value">127</div>
+                <div className="stat-card-label">Total Predictions</div>
+                <div className="stat-card-trend">+12 this month</div>
+              </div>
 
-            <div className="balance-change positive">
-              <span className="change-icon">↗</span>
-              <span className="change-text">+$373.50 this week</span>
-            </div>
+              <div className="stat-card">
+                <div className="stat-card-icon">🎯</div>
+                <div className="stat-card-value">73%</div>
+                <div className="stat-card-label">Win Rate</div>
+                <div className="stat-card-trend">+5% from last month</div>
+              </div>
 
-            <div className="recent-transactions">
-              <h4 className="transactions-title">Recent Activity</h4>
-              <div className="transactions-list">
-                {TRANSACTIONS.slice(0, 4).map((tx) => (
-                  <div key={tx.id} className={`transaction-item ${tx.type}`}>
-                    <div className="transaction-icon">
-                      {tx.type === 'win' && '💰'}
-                      {tx.type === 'loss' && '📉'}
-                      {tx.type === 'deposit' && '⬇️'}
-                      {tx.type === 'withdraw' && '⬆️'}
-                    </div>
-                    <div className="transaction-details">
-                      <div className="transaction-description">{tx.description}</div>
-                      <div className="transaction-time">{tx.timestamp}</div>
-                    </div>
-                    <div className={`transaction-amount ${tx.amount > 0 ? 'positive' : 'negative'}`}>
-                      {tx.amount > 0 ? '+' : ''}${Math.abs(tx.amount).toFixed(2)}
-                    </div>
-                  </div>
-                ))}
+              <div className="stat-card">
+                <div className="stat-card-icon">👥</div>
+                <div className="stat-card-value">42.3k</div>
+                <div className="stat-card-label">Influenced</div>
+                <div className="stat-card-trend">Total participants</div>
+              </div>
+
+              <div className="stat-card streak">
+                <div className="stat-card-icon">🔥</div>
+                <div className="stat-card-value">8</div>
+                <div className="stat-card-label">Current Streak</div>
+                <div className="stat-card-trend">Personal best: 12</div>
               </div>
             </div>
-          </div>
-
-          {/* Stats Cards */}
-          <div className="stats-cards">
-            <div className="stat-card">
-              <div className="stat-card-icon">📊</div>
-              <div className="stat-card-value">127</div>
-              <div className="stat-card-label">Total Predictions</div>
-              <div className="stat-card-trend">+12 this month</div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-card-icon">🎯</div>
-              <div className="stat-card-value">73%</div>
-              <div className="stat-card-label">Win Rate</div>
-              <div className="stat-card-trend">+5% from last month</div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-card-icon">👥</div>
-              <div className="stat-card-value">42.3k</div>
-              <div className="stat-card-label">Influenced</div>
-              <div className="stat-card-trend">Total participants</div>
-            </div>
-
-            <div className="stat-card streak">
-              <div className="stat-card-icon">🔥</div>
-              <div className="stat-card-value">8</div>
-              <div className="stat-card-label">Current Streak</div>
-              <div className="stat-card-trend">Personal best: 12</div>
-            </div>
-          </div>
           </div>
 
           {/* Activity Section */}
           <div className="activity-section">
             <div className="activity-tabs">
               <button
-                className={`activity-tab ${activeTab === 'active' ? 'active' : ''}`}
-                onClick={() => setActiveTab('active')}
+                className={`activity-tab ${activeTab === "active" ? "active" : ""}`}
+                onClick={() => setActiveTab("active")}
               >
                 <span className="tab-icon">⚡</span>
                 Active Predictions
                 <span className="tab-count">{ACTIVE_PREDICTIONS.length}</span>
               </button>
               <button
-                className={`activity-tab ${activeTab === 'history' ? 'active' : ''}`}
-                onClick={() => setActiveTab('history')}
+                className={`activity-tab ${activeTab === "history" ? "active" : ""}`}
+                onClick={() => setActiveTab("history")}
               >
                 <span className="tab-icon">📜</span>
                 History
                 <span className="tab-count">{PREDICTION_HISTORY.length}</span>
               </button>
-              <button
-                className={`activity-tab ${activeTab === 'achievements' ? 'active' : ''}`}
-                onClick={() => setActiveTab('achievements')}
-              >
-                <span className="tab-icon">🏆</span>
-                Achievements
-                <span className="tab-count">{ACHIEVEMENTS.filter(a => a.unlocked).length}/{ACHIEVEMENTS.length}</span>
-              </button>
             </div>
 
             <div className="activity-content">
-              {activeTab === 'active' && (
+              {activeTab === "active" && (
                 <div className="predictions-list">
                   {ACTIVE_PREDICTIONS.map((pred) => (
                     <div key={pred.id} className="prediction-card">
                       <div className="prediction-header">
                         <h4 className="prediction-question">{pred.question}</h4>
                         <div className={`prediction-status ${pred.status}`}>
-                          {pred.status === 'active' && '🟢 Active'}
-                          {pred.status === 'pending' && '🟡 Pending'}
+                          {pred.status === "active" && "🟢 Active"}
+                          {pred.status === "pending" && "🟡 Pending"}
                         </div>
                       </div>
 
@@ -303,7 +303,9 @@ export default function ProfilePage() {
                           👥 {pred.participants.toLocaleString()} participants
                         </div>
                         {pred.timeLeft && (
-                          <div className="prediction-time">⏰ {pred.timeLeft}</div>
+                          <div className="prediction-time">
+                            ⏰ {pred.timeLeft}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -311,15 +313,18 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {activeTab === 'history' && (
+              {activeTab === "history" && (
                 <div className="predictions-list">
                   {PREDICTION_HISTORY.map((pred) => (
-                    <div key={pred.id} className={`prediction-card history ${pred.status}`}>
+                    <div
+                      key={pred.id}
+                      className={`prediction-card history ${pred.status}`}
+                    >
                       <div className="prediction-header">
                         <h4 className="prediction-question">{pred.question}</h4>
                         <div className={`prediction-status ${pred.status}`}>
-                          {pred.status === 'won' && '✅ Won'}
-                          {pred.status === 'lost' && '❌ Lost'}
+                          {pred.status === "won" && "✅ Won"}
+                          {pred.status === "lost" && "❌ Lost"}
                         </div>
                       </div>
 
@@ -338,42 +343,12 @@ export default function ProfilePage() {
                           👥 {pred.participants.toLocaleString()} participants
                         </div>
                         {pred.profit && (
-                          <div className={`prediction-profit ${pred.profit > 0 ? 'positive' : 'negative'}`}>
-                            {pred.profit > 0 ? '+' : ''}${Math.abs(pred.profit).toFixed(2)}
+                          <div
+                            className={`prediction-profit ${pred.profit > 0 ? "positive" : "negative"}`}
+                          >
+                            {pred.profit > 0 ? "+" : ""}$
+                            {Math.abs(pred.profit).toFixed(2)}
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {activeTab === 'achievements' && (
-                <div className="achievements-grid">
-                  {ACHIEVEMENTS.map((achievement) => (
-                    <div
-                      key={achievement.id}
-                      className={`achievement-card ${achievement.unlocked ? 'unlocked' : 'locked'}`}
-                    >
-                      <div className="achievement-icon">{achievement.icon}</div>
-                      <div className="achievement-info">
-                        <h4 className="achievement-title">{achievement.title}</h4>
-                        <p className="achievement-description">{achievement.description}</p>
-                        {!achievement.unlocked && achievement.progress !== undefined && (
-                          <div className="achievement-progress">
-                            <div className="progress-bar">
-                              <div
-                                className="progress-fill"
-                                style={{ width: `${(achievement.progress / achievement.total!) * 100}%` }}
-                              ></div>
-                            </div>
-                            <div className="progress-text">
-                              {achievement.progress.toLocaleString()} / {achievement.total?.toLocaleString()}
-                            </div>
-                          </div>
-                        )}
-                        {achievement.unlocked && (
-                          <div className="unlocked-badge">Unlocked ✓</div>
                         )}
                       </div>
                     </div>

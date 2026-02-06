@@ -1,18 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import './market.css';
+import { useParams } from "next/navigation";
+import { useHakiContract } from "@/hooks/useHakiContract";
 
-interface Outcome {
+interface MarketOption {
   id: string;
-  emoji: string;
   name: string;
   odds: number;
   price: number;
   volume: number;
   holders: number;
+  userShares: number;
 }
 
 interface RecentBet {
@@ -24,21 +26,16 @@ interface RecentBet {
   timestamp: string;
 }
 
-const OUTCOMES: Outcome[] = [
-  { id: '1', emoji: '🇮🇳', name: 'India wins', odds: 58, price: 0.58, volume: 12450, holders: 234 },
-  { id: '2', emoji: '🇦🇺', name: 'Australia wins', odds: 28, price: 0.28, volume: 6890, holders: 156 },
-  { id: '3', emoji: '🤝', name: 'Draw', odds: 14, price: 0.14, volume: 3120, holders: 89 },
-];
-
-const RECENT_BETS: RecentBet[] = [
-  { id: '1', user: 'CricketFan', outcome: 'India wins', amount: 250, odds: 58, timestamp: '2m ago' },
-  { id: '2', user: 'StatsMaster', outcome: 'Australia wins', amount: 500, odds: 28, timestamp: '5m ago' },
-  { id: '3', user: 'BetKing', outcome: 'India wins', amount: 150, odds: 59, timestamp: '8m ago' },
-  { id: '4', user: 'OzzyBets', outcome: 'Australia wins', amount: 300, odds: 27, timestamp: '12m ago' },
-  { id: '5', user: 'PredictPro', outcome: 'Draw', amount: 100, odds: 14, timestamp: '15m ago' },
+// Mock recent bets - replace with real data when available
+const MOCK_RECENT_BETS: RecentBet[] = [
+  { id: '1', user: 'CryptoTrader', outcome: 'Option 1', amount: 250, odds: 58, timestamp: '2m ago' },
+  { id: '2', user: 'MarketMaker', outcome: 'Option 2', amount: 500, odds: 28, timestamp: '5m ago' },
+  { id: '3', user: 'BetKing', outcome: 'Option 1', amount: 150, odds: 59, timestamp: '8m ago' },
 ];
 
 export default function MarketPage() {
+  const params = useParams();
+  const id = params.id as string;
   const router = useRouter();
   const [betAmounts, setBetAmounts] = useState<{ [key: string]: string }>({});
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
@@ -47,18 +44,109 @@ export default function MarketPage() {
     setBetAmounts({ ...betAmounts, [outcomeId]: value });
   };
 
-  const calculatePayout = (outcomeId: string) => {
-    const amount = parseFloat(betAmounts[outcomeId] || '0');
-    const outcome = OUTCOMES.find(o => o.id === outcomeId);
-    if (!outcome || amount === 0) return 0;
-    return (amount / outcome.price).toFixed(2);
+  const { market, isLoading } = useHakiContract(id);
+
+  // Check if market has expired
+  const isExpired = useMemo(() => {
+    if (!market?.expiry) return false;
+    return Date.now() / 1000 > market.expiry;
+  }, [market?.expiry]);
+
+  // Determine market status
+  const marketStatus = useMemo(() => {
+    if (!market) return { label: 'Loading', className: 'loading' };
+    if (market.resolved) return { label: 'Resolved', className: 'resolved' };
+    if (isExpired) return { label: 'Resolving', className: 'resolving' };
+    return { label: 'Open', className: 'open' };
+  }, [market, isExpired]);
+
+  // Generate market options with mock prices and user shares
+  const marketOptions: MarketOption[] = useMemo(() => {
+    if (!market?.options) return [];
+
+    const baseOdds = [45, 30, 15, 10];
+    return market.options.map((option, index) => ({
+      id: index.toString(),
+      name: option,
+      odds: baseOdds[index] || Math.max(5, 60 - index * 10),
+      price: (baseOdds[index] || Math.max(5, 60 - index * 10)) / 100,
+      volume: Math.floor(Math.random() * 10000) + 5000,
+      holders: Math.floor(Math.random() * 200) + 50,
+      userShares: Math.floor(Math.random() * 100),
+    }));
+  }, [market?.options]);
+
+  // Calculate time remaining
+  const timeRemaining = useMemo(() => {
+    if (!market?.expiry) return 'No expiry set';
+    const now = Date.now() / 1000;
+    const diff = market.expiry - now;
+
+    if (diff <= 0) return 'Expired';
+
+    const days = Math.floor(diff / 86400);
+    const hours = Math.floor((diff % 86400) / 3600);
+
+    if (days > 0) return `${days}d ${hours}h`;
+    return `${hours}h`;
+  }, [market?.expiry]);
+
+  // Trade functions
+  const handleBuy = (optionId: string, amount: string) => {
+    console.log('🎯 BUY', {
+      marketId: id,
+      optionId,
+      amount,
+      option: marketOptions.find(o => o.id === optionId)?.name,
+    });
   };
 
-  const calculateProfit = (outcomeId: string) => {
-    const amount = parseFloat(betAmounts[outcomeId] || '0');
-    const payout = parseFloat(calculatePayout(outcomeId));
-    return (payout - amount).toFixed(2);
+  const handleSell = (optionId: string, shares: number) => {
+    console.log('💰 SELL', {
+      marketId: id,
+      optionId,
+      shares,
+      option: marketOptions.find(o => o.id === optionId)?.name,
+    });
   };
+
+  // Truncate address for display
+  const truncateAddress = (address: string) => {
+    if (!address) return 'Unknown';
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  if (isLoading) {
+    return (
+      <>
+        <Navigation />
+        <div className="market-container">
+          <div className="loading-state">
+            <div className="loading-spinner">⟳</div>
+            <p>Loading market data...</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (!market) {
+    return (
+      <>
+        <Navigation />
+        <div className="market-container">
+          <div className="error-state">
+            <div className="error-icon">⚠️</div>
+            <h2>Market Not Found</h2>
+            <p>The market you&apos;re looking for doesn&apos;t exist or hasn&apos;t been created yet.</p>
+            <button onClick={() => router.push('/')} className="back-btn">
+              ← Back to Home
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -69,33 +157,44 @@ export default function MarketPage() {
         <div className="market-header">
           <div className="market-header-content">
             <div className="market-breadcrumb">
-              <button onClick={() => router.push('/')} className="breadcrumb-link">Home</button>
+              <button
+                onClick={() => router.push("/")}
+                className="breadcrumb-link"
+              >
+                Home
+              </button>
               <span className="breadcrumb-separator">›</span>
-              <button onClick={() => router.push('/topics')} className="breadcrumb-link">Sports</button>
-              <span className="breadcrumb-separator">›</span>
-              <span className="breadcrumb-current">India vs Australia</span>
+              <span className="breadcrumb-current">{market.label}</span>
             </div>
 
             <div className="market-title-row">
-              <h1 className="market-question">Will India win the Test match vs Australia?</h1>
-              <div className="market-status open">
+              <h1 className="market-question">
+                {market.label}.haki.eth
+              </h1>
+              <div className={`market-status ${marketStatus.className}`}>
                 <span className="status-dot"></span>
-                Open
+                {marketStatus.label}
               </div>
             </div>
 
             <div className="market-meta">
               <div className="market-author">
-                <div className="author-avatar">🏏</div>
+                <div className="author-avatar">⬢</div>
                 <div className="author-details">
-                  <div className="author-name">Raj Patel</div>
-                  <div className="author-stats">92% accurate · 234 predictions</div>
+                  <div className="author-name">{truncateAddress(market.creator)}</div>
+                  <div className="author-stats">
+                    Market Creator
+                  </div>
                 </div>
               </div>
 
               <div className="market-tags">
-                <span className="market-tag sports">🏏 Cricket</span>
-                <span className="market-tag time">⏰ Closes in 2d 14h</span>
+                <span className="market-tag sports">📊 Prediction Market</span>
+                {market.expiry > 0 && (
+                  <span className="market-tag time">
+                    ⏰ {isExpired ? 'Expired' : `Closes in ${timeRemaining}`}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -108,119 +207,181 @@ export default function MarketPage() {
             {/* Market Info Card */}
             <div className="info-card">
               <h3 className="info-card-title">Market Details</h3>
-              <p className="market-description">
-                BGT 2026, third test at Sydney. India needs this to stay in the series.
-                Pitch historically favors spin, and India has a strong spin attack led by Ashwin and Jadeja.
+              <p className="market-description text-xl">
+                {market.description || 'No description provided for this market.'}
               </p>
 
               <div className="market-stats-row">
                 <div className="market-stat">
                   <div className="market-stat-label">Total Volume</div>
-                  <div className="market-stat-value">$22,460</div>
+                  <div className="market-stat-value">
+                    ${marketOptions.reduce((sum, opt) => sum + opt.volume, 0).toLocaleString()}
+                  </div>
                 </div>
                 <div className="market-stat">
-                  <div className="market-stat-label">Participants</div>
-                  <div className="market-stat-value">479</div>
+                  <div className="market-stat-label">Total Holders</div>
+                  <div className="market-stat-value">
+                    {marketOptions.reduce((sum, opt) => sum + opt.holders, 0)}
+                  </div>
                 </div>
                 <div className="market-stat">
-                  <div className="market-stat-label">Your Position</div>
-                  <div className="market-stat-value position">+$125.50</div>
+                  <div className="market-stat-label">Your Shares</div>
+                  <div className="market-stat-value position">
+                    {marketOptions.reduce((sum, opt) => sum + opt.userShares, 0)}
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Outcomes Betting Card */}
             <div className="outcomes-card">
-              <h3 className="outcomes-card-title">Place Your Bet</h3>
+              <h3 className="outcomes-card-title">
+                {isExpired || market.resolved ? 'Market Outcomes' : 'Place Your Trade'}
+              </h3>
 
               <div className="outcomes-list">
-                {OUTCOMES.map((outcome) => (
-                  <div
-                    key={outcome.id}
-                    className={`outcome-bet-card ${selectedOutcome === outcome.id ? 'selected' : ''}`}
-                    onClick={() => setSelectedOutcome(outcome.id)}
-                  >
-                    <div className="outcome-header">
-                      <div className="outcome-info">
-                        <span className="outcome-emoji">{outcome.emoji}</span>
-                        <span className="outcome-name">{outcome.name}</span>
-                      </div>
-                      <div className="outcome-odds-badge">{outcome.odds}%</div>
-                    </div>
+                {marketOptions.map((option) => {
+                  const betAmount = betAmounts[option.id] ? parseFloat(betAmounts[option.id]) : 0;
+                  const expectedPayout = betAmount > 0 ? betAmount / option.price : 0;
+                  const potentialProfit = expectedPayout - betAmount;
 
-                    <div className="outcome-stats">
-                      <div className="outcome-stat-item">
-                        <span className="outcome-stat-label">Price</span>
-                        <span className="outcome-stat-value">${outcome.price.toFixed(2)}</span>
-                      </div>
-                      <div className="outcome-stat-item">
-                        <span className="outcome-stat-label">Volume</span>
-                        <span className="outcome-stat-value">${outcome.volume.toLocaleString()}</span>
-                      </div>
-                      <div className="outcome-stat-item">
-                        <span className="outcome-stat-label">Holders</span>
-                        <span className="outcome-stat-value">{outcome.holders}</span>
-                      </div>
-                    </div>
-
-                    <div className="bet-input-section">
-                      <div className="bet-input-wrapper">
-                        <span className="bet-input-label">Amount</span>
-                        <div className="bet-input-container">
-                          <span className="bet-input-symbol">$</span>
-                          <input
-                            type="number"
-                            className="bet-input"
-                            placeholder="0.00"
-                            value={betAmounts[outcome.id] || ''}
-                            onChange={(e) => handleBetAmountChange(outcome.id, e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="bet-quick-amounts">
-                        {[10, 25, 50, 100].map((amount) => (
-                          <button
-                            key={amount}
-                            className="quick-amount-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleBetAmountChange(outcome.id, amount.toString());
-                            }}
-                          >
-                            ${amount}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {betAmounts[outcome.id] && parseFloat(betAmounts[outcome.id]) > 0 && (
-                      <div className="payout-preview">
-                        <div className="payout-row">
-                          <span className="payout-label">Expected Payout</span>
-                          <span className="payout-value">${calculatePayout(outcome.id)}</span>
-                        </div>
-                        <div className="payout-row profit">
-                          <span className="payout-label">Potential Profit</span>
-                          <span className="payout-value profit">+${calculateProfit(outcome.id)}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <button
-                      className="place-bet-btn"
-                      disabled={!betAmounts[outcome.id] || parseFloat(betAmounts[outcome.id]) <= 0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        console.log('Place bet:', outcome.name, betAmounts[outcome.id]);
-                      }}
+                  return (
+                    <div
+                      key={option.id}
+                      className={`outcome-bet-card ${selectedOutcome === option.id ? "selected" : ""}`}
+                      onClick={() => !isExpired && !market.resolved && setSelectedOutcome(option.id)}
                     >
-                      <span className="place-bet-icon">🎯</span>
-                      Place Bet on {outcome.name}
-                    </button>
-                  </div>
-                ))}
+                      <div className="outcome-header">
+                        <div className="outcome-info">
+                          <span className="outcome-emoji">
+                            {option.id === '0' ? '🥇' : option.id === '1' ? '🥈' : option.id === '2' ? '🥉' : '◆'}
+                          </span>
+                          <span className="outcome-name">{option.name}</span>
+                        </div>
+                        <div className="outcome-odds-badge">{option.odds}%</div>
+                      </div>
+
+                      <div className="outcome-stats">
+                        <div className="outcome-stat-item">
+                          <span className="outcome-stat-label">Price</span>
+                          <span className="outcome-stat-value">
+                            ${option.price.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="outcome-stat-item">
+                          <span className="outcome-stat-label">Volume</span>
+                          <span className="outcome-stat-value">
+                            ${option.volume.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="outcome-stat-item">
+                          <span className="outcome-stat-label">Your Shares</span>
+                          <span className="outcome-stat-value">
+                            {option.userShares}
+                          </span>
+                        </div>
+                      </div>
+
+                      {!isExpired && !market.resolved && (
+                        <>
+                          <div className="bet-input-section">
+                            <div className="bet-input-wrapper">
+                              <span className="bet-input-label">Amount (USD)</span>
+                              <div className="bet-input-container">
+                                <span className="bet-input-symbol">$</span>
+                                <input
+                                  type="number"
+                                  className="bet-input"
+                                  placeholder="0.00"
+                                  value={betAmounts[option.id] || ""}
+                                  onChange={(e) =>
+                                    handleBetAmountChange(option.id, e.target.value)
+                                  }
+                                  onClick={(e) => e.stopPropagation()}
+                                  min="0"
+                                  step="0.01"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="bet-quick-amounts">
+                              {[10, 25, 50, 100].map((amount) => (
+                                <button
+                                  key={amount}
+                                  className="quick-amount-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleBetAmountChange(
+                                      option.id,
+                                      amount.toString(),
+                                    );
+                                  }}
+                                >
+                                  ${amount}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {betAmount > 0 && (
+                            <div className="payout-preview">
+                              <div className="payout-row">
+                                <span className="payout-label">
+                                  Expected Shares
+                                </span>
+                                <span className="payout-value">
+                                  {expectedPayout.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="payout-row profit">
+                                <span className="payout-label">
+                                  Potential Profit (if wins)
+                                </span>
+                                <span className="payout-value profit">
+                                  +${potentialProfit.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="trade-buttons">
+                            <button
+                              className="place-bet-btn buy"
+                              disabled={betAmount <= 0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleBuy(option.id, betAmounts[option.id]);
+                              }}
+                            >
+                              <span className="place-bet-icon">🎯</span>
+                              Buy Shares
+                            </button>
+
+                            {option.userShares > 0 && (
+                              <button
+                                className="place-bet-btn sell"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSell(option.id, option.userShares);
+                                }}
+                              >
+                                <span className="place-bet-icon">💰</span>
+                                Sell {option.userShares} Shares
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+
+                      {(isExpired || market.resolved) && (
+                        <div className="market-closed-notice">
+                          <span className="closed-icon">🔒</span>
+                          {market.resolved ? 'Market Resolved' : 'Market Resolving'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -231,18 +392,20 @@ export default function MarketPage() {
             <div className="sidebar-card">
               <h3 className="sidebar-card-title">Odds Distribution</h3>
               <div className="odds-chart">
-                {OUTCOMES.map((outcome) => (
-                  <div key={outcome.id} className="odds-bar-wrapper">
+                {marketOptions.map((option) => (
+                  <div key={option.id} className="odds-bar-wrapper">
                     <div className="odds-bar-header">
                       <span className="odds-bar-label">
-                        {outcome.emoji} {outcome.name}
+                        {option.name}
                       </span>
-                      <span className="odds-bar-percentage">{outcome.odds}%</span>
+                      <span className="odds-bar-percentage">
+                        {option.odds}%
+                      </span>
                     </div>
                     <div className="odds-bar">
                       <div
                         className="odds-bar-fill"
-                        style={{ width: `${outcome.odds}%` }}
+                        style={{ width: `${option.odds}%` }}
                       ></div>
                     </div>
                   </div>
@@ -252,15 +415,15 @@ export default function MarketPage() {
 
             {/* Recent Activity */}
             <div className="sidebar-card activity-card">
-              <h3 className="sidebar-card-title">Recent Bets</h3>
+              <h3 className="sidebar-card-title">Recent Activity</h3>
               <div className="activity-list">
-                {RECENT_BETS.map((bet) => (
+                {MOCK_RECENT_BETS.map((bet) => (
                   <div key={bet.id} className="activity-item">
                     <div className="activity-user-avatar">{bet.user[0]}</div>
                     <div className="activity-details">
                       <div className="activity-user">{bet.user}</div>
                       <div className="activity-action">
-                        Bet ${bet.amount} on <strong>{bet.outcome}</strong>
+                        Traded ${bet.amount} on <strong>{bet.outcome}</strong>
                       </div>
                     </div>
                     <div className="activity-meta">
@@ -272,27 +435,32 @@ export default function MarketPage() {
               </div>
             </div>
 
-            {/* Top Predictors */}
+            {/* Market Info */}
             <div className="sidebar-card">
-              <h3 className="sidebar-card-title">Top Predictors</h3>
-              <div className="top-predictors-list">
-                {[
-                  { name: 'StatsMaster', position: 'India wins', amount: 1250, profit: '+$420' },
-                  { name: 'CricketGuru', position: 'India wins', amount: 980, profit: '+$310' },
-                  { name: 'BetPro', position: 'Australia wins', amount: 750, profit: '+$180' },
-                ].map((predictor, index) => (
-                  <div key={index} className="predictor-item">
-                    <div className="predictor-rank">#{index + 1}</div>
-                    <div className="predictor-info">
-                      <div className="predictor-name">{predictor.name}</div>
-                      <div className="predictor-position">{predictor.position}</div>
-                    </div>
-                    <div className="predictor-stats">
-                      <div className="predictor-amount">${predictor.amount}</div>
-                      <div className="predictor-profit">{predictor.profit}</div>
-                    </div>
+              <h3 className="sidebar-card-title">Market Information</h3>
+              <div className="market-info-list">
+                <div className="market-info-item">
+                  <span className="info-label">Creator</span>
+                  <span className="info-value">{truncateAddress(market.creator)}</span>
+                </div>
+                <div className="market-info-item">
+                  <span className="info-label">Options</span>
+                  <span className="info-value">{marketOptions.length}</span>
+                </div>
+                {market.expiry > 0 && (
+                  <div className="market-info-item">
+                    <span className="info-label">Expiry</span>
+                    <span className="info-value">
+                      {new Date(market.expiry * 1000).toLocaleDateString()}
+                    </span>
                   </div>
-                ))}
+                )}
+                <div className="market-info-item">
+                  <span className="info-label">Status</span>
+                  <span className={`info-value status-${marketStatus.className}`}>
+                    {marketStatus.label}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
