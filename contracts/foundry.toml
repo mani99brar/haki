@@ -1,0 +1,13 @@
+[profile.default]
+solc = "0.8.20"
+auto_detect_solc = true
+src = "src"
+out = "out"
+libs = ["lib"]
+remappings = [
+    '@ensdomains/ens-contracts/=lib/ens-contracts/',
+    '@ensdomains/buffer/=lib/buffer/',
+    '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/'
+]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
