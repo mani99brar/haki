@@ -4,17 +4,22 @@ import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import MarketCard from "@/components/MarketCard";
 import { useAllMarkets } from "@/hooks/useAllMarkets";
+import OnboardingManager from "@/components/OnBoarding";
+import { useAppKitAccount } from "@reown/appkit/react";
 import "./home.css";
 
 export default function Home() {
   const router = useRouter();
   const { marketLabels, isLoading, nextPage, prevPage, isAtEnd, currentRange } =
     useAllMarkets();
+  const { isConnected } = useAppKitAccount();
+  
 
   const canGoPrev = currentRange.from > BigInt(10204130); // DEPLOY_BLOCK
 
   return (
     <>
+      {isConnected && <OnboardingManager />}
       <Navigation />
 
       <div className="home-container">

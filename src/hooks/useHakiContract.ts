@@ -6,8 +6,8 @@ import {
 import { keccak256, encodePacked, namehash } from "viem";
 import { HAKI_ABI } from "../utils/abis/Haki";
 import { PUBLIC_RESOLVER_ABI } from "../utils/abis/PublicResolver";
+import { HAKI_ADDRESS } from "@/utils/consts";
 
-const HAKI_ADDRESS = "0x8f01899fa646ceb22533f676ec798812b01c81c4";
 const RESOLVER_ADDRESS = "0xE99638b40E4Fff0129D56f03b55b6bbC4BBE49b5";
 const PARENT_NODE = namehash("haki.eth");
 
