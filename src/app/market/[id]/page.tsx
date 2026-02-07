@@ -6,6 +6,7 @@ import Navigation from '@/components/Navigation';
 import './market.css';
 import { useParams } from "next/navigation";
 import { useHakiContract } from "@/hooks/useHakiContract";
+import { useYellowTrade } from "@/hooks/yellow/useYellowTrade";
 
 interface MarketOption {
   id: string;
@@ -39,6 +40,7 @@ export default function MarketPage() {
   const router = useRouter();
   const [betAmounts, setBetAmounts] = useState<{ [key: string]: string }>({});
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
+  const { placeBet, isTrading } = useYellowTrade();
 
   const handleBetAmountChange = (outcomeId: string, value: string) => {
     setBetAmounts({ ...betAmounts, [outcomeId]: value });
@@ -93,12 +95,13 @@ export default function MarketPage() {
 
   // Trade functions
   const handleBuy = (optionId: string, amount: string) => {
-    console.log('🎯 BUY', {
+    console.log("🎯 BUY", {
       marketId: id,
       optionId,
       amount,
-      option: marketOptions.find(o => o.id === optionId)?.name,
+      option: marketOptions.find((o) => o.id === optionId)?.name,
     });
+    placeBet(amount);
   };
 
   const handleSell = (optionId: string, shares: number) => {
