@@ -49,6 +49,7 @@ interface YellowContextType {
   sessionSigner: any;
   loading: boolean;
   setLoading: (val: boolean) => void;
+  pendingChannelData: any;
 }
 
 const YellowContext = createContext<YellowContextType | undefined>(undefined);
@@ -62,6 +63,7 @@ export function YellowProvider({ children }: { children: ReactNode }) {
   const [logs, setLogs] = useState<string[]>([]);
   const [pendingYellowConnection, setPendingYellowConnection] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pendingChannelData, setPendingChannelData] = useState<any>();
   const lastChallengeRef = useRef<string | null>(null);
   const authParamsRef = useRef<any>(null);
 
@@ -234,12 +236,62 @@ export function YellowProvider({ children }: { children: ReactNode }) {
         }
 
         if (type === "channels") {
-          console.log("CHANNEL DATA");
-          console.log(data.channels[0].channel_id);
+          console.log("CHANNEL full DATA", data);
           const channelData = data.channels[0];
-          console.log(channelData);
+          console.log("CHANNEL DATA", channelData);
           setActiveChannelId(data.channels[0].channel_id);
         }
+        if (type === "create_channel") {
+          addLog("🏗️ Proposal received. Ready for on-chain activation.");
+          const channel = {
+            participants: (data.channel.participants || []).map(
+              (p: string) => p as `0x${string}`,
+            ),
+            adjudicator: data.channel.adjudicator as `0x${string}`,
+            challenge: BigInt(data.channel.challenge || 3600),
+            nonce: BigInt(data.channel.nonce),
+          };
+
+          // 2. Defensively map Initial State
+          const unsignedInitialState: any = {
+            intent: BigInt(data.state.intent || 1),
+            version: BigInt(data.state.version || 0),
+            // Use 'data' for the property name as required by the TS error earlier
+            data: data.state.state_data || "0x",
+            allocations: (data.state.allocations || []).map((a: any) => {
+              // ENSURE NO UNDEFINED VALUES HERE
+              if (!a.asset || !a.destination) {
+                console.error("🚨 Found malformed allocation:", a);
+              }
+              return {
+                asset: (a.asset ||
+                  "0x0000000000000000000000000000000000000000") as `0x${string}`,
+                destination: (a.destination ||
+                  "0x0000000000000000000000000000000000000000") as `0x${string}`,
+                amount: BigInt(a.amount || 0),
+              };
+            }),
+          };
+
+          // DEBUG LOG: Check for any 'undefined' strings in this output
+          console.log("🛠️ FINAL OBJECT CHECK:", {
+            channel,
+            unsignedInitialState,
+          });
+
+          // 2. Log to verify before sending
+          console.log("🚀 Prepared State for SDK:", unsignedInitialState);
+          const createResult = await clientRef.current?.createChannel({
+            channel,
+            unsignedInitialState,
+            serverSignature: data.server_signature as `0x${string}`,
+          });
+          console.log(createResult);
+          // Store the full response data so the Onboarding Manager can grab it
+          setPendingChannelData(data);
+          setActiveChannelId(data.channel_id);
+        }
+
         // --- DISCOVERY & CHANNEL LOGIC ---
         // (remains the same as your provided code)
       };
@@ -358,6 +410,7 @@ export function YellowProvider({ children }: { children: ReactNode }) {
         sessionSigner: sessionSignerRef.current,
         loading,
         setLoading,
+        pendingChannelData,
       }}
     >
       {children}

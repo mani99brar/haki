@@ -16,10 +16,10 @@ contract DeployHaki is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployerAddress = vm.addr(deployerPrivateKey);
 
-        // 1. Calculate the Namehash for your platform (e.g., "haki.eth")
-        // namehash("haki.eth") = keccak256(abi.encodePacked(namehash("eth"), keccak256("haki")))
+        // 1. Calculate the Namehash for your platform (e.g., "haki-pm.eth")
+        // namehash("haki-pm.eth") = keccak256(abi.encodePacked(namehash("eth"), keccak256("haki")))
         bytes32 ethNode = keccak256(abi.encodePacked(bytes32(0), keccak256("eth")));
-        bytes32 hakiNode = keccak256(abi.encodePacked(ethNode, keccak256("haki")));
+        bytes32 hakiNode = keccak256(abi.encodePacked(ethNode, keccak256("haki-pm")));
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -35,7 +35,7 @@ contract DeployHaki is Script {
         );
 
         console.log("Haki deployed at:", address(haki));
-        console.log("Parent Node (haki.eth):");
+        console.log("Parent Node (haki-pm.eth):");
         console.logBytes32(hakiNode);
 
         vm.stopBroadcast();

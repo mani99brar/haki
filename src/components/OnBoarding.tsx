@@ -6,44 +6,47 @@ import { useYellow } from "@/context/YellowProvider";
 import { useYellowChannel } from "@/hooks/yellow/useYellowChannel";
 import { requestFaucetTokens } from "@/utils/yellowFaucet";
 import { useAccount } from "wagmi";
+import { parseUnits } from "viem";
 
 export default function OnboardingManager() {
-  const { status, activeChannelId, requestSignature, jwt, connect } =
-    useYellow();
-  const { createChannel } = useYellowChannel();
+  const {
+    status,
+    activeChannelId,
+    requestSignature,
+    jwt,
+    connect,
+    pendingChannelData,
+  } = useYellow();
+  const { createChannel, fundChannel, isProcessing, activateChannelOnChain } =
+    useYellowChannel();
   const { address } = useAccount();
 
   const [isOpen, setIsOpen] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
-  // 1. Trigger connection when modal opens
+  // 1. Initial Connection
   useEffect(() => {
     if (isOpen && status === "disconnected") {
       connect();
     }
   }, [isOpen, status, connect]);
 
-  // 2. Open modal if no channel exists
+  // 2. Initial Modal Trigger (Only if not onboarded)
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem("haki_onboarded");
-    if (!activeChannelId && !hasSeenOnboarding) {
+    if (!activeChannelId && !hasSeenOnboarding && !isOpen) {
       setIsOpen(true);
     }
-  }, [activeChannelId]);
+  }, [activeChannelId, isOpen]);
 
-  // --- AUTOMATION LOGIC ---
+  // 3. AUTOMATION: Only move based on actual state changes
   useEffect(() => {
-    // Transition from Auth -> Faucet
-    if (status === "connected" && currentStepIndex === 0) {
+    // Transition from Auth -> Faucet (Step 0 -> 1)
+    if (jwt && status === "connected" && currentStepIndex === 0) {
       setCurrentStepIndex(1);
     }
-
-    // Transition from Channel -> Finalize
-    // We check currentStepIndex < 3 to avoid infinite loop
-    if (activeChannelId && currentStepIndex < 3) {
-      setCurrentStepIndex(3);
-    }
-  }, [status, activeChannelId, currentStepIndex]);
+    if (activeChannelId && currentStepIndex == 2) setCurrentStepIndex(3);
+  }, [jwt, status, activeChannelId, currentStepIndex]);
 
   const steps: TransactionStep[] = useMemo(
     () => [
@@ -52,26 +55,22 @@ export default function OnboardingManager() {
         title: "Authorize Session",
         description: jwt
           ? "Session Key validated."
-          : "Sign to authorize your session.",
-        // Success if we are past this step OR connected
+          : "Sign to authorize your L3 session.",
         status:
-          status === "connected" || status === "active" || currentStepIndex > 0
+          status === "connected" || currentStepIndex > 0
             ? "success"
-            : status === "authenticating"
-              ? "processing"
-              : "active",
+            : status === "waiting-signature"
+              ? "active"
+              : "pending",
         action: {
-          label: jwt ? "RESUME SESSION" : "AUTHORIZE",
-          onClick: async () => {
-            await requestSignature();
-          },
+          label: jwt ? "AUTHORIZED" : "AUTHORIZE",
+          onClick: async () => await requestSignature(),
         },
       },
       {
         id: "fuel-up",
         title: "Fuel Account",
         description: "Requesting testnet USDC from the Yellow Faucet.",
-        // Active only if we are exactly on this step
         status:
           currentStepIndex === 1
             ? "active"
@@ -84,43 +83,66 @@ export default function OnboardingManager() {
             if (!address) return;
             try {
               await requestFaucetTokens(address);
+              // Move to Step 2 manually since Faucet doesn't change a "Global Status" we track
+              setCurrentStepIndex(2);
             } catch (e) {
-              console.error("Faucet skip");
-            } finally {
               setCurrentStepIndex(2);
             }
           },
         },
       },
-      {
-        id: "create-channel",
-        title: "Create Channel",
-        description: "Establishing your L3 clearing channel.",
-        // Success if we have an ID, otherwise active if index is 2
-        status:
-          activeChannelId || currentStepIndex > 2
-            ? "success"
-            : currentStepIndex === 2
-              ? "active"
-              : "pending",
-        action: {
-          label: "OPEN CHANNEL",
-          onClick: async () => {
-            try {
-              await createChannel();
-            } catch (e) {
-              console.error("Channel skip");
-            } finally {
-              setCurrentStepIndex(3);
-            }
-          },
-        },
-      },
+      // {
+      //   id: "create-channel",
+      //   title: "Create Channel",
+      //   description: "Sign on-chain to activate your clearing channel.",
+      //   status:
+      //     currentStepIndex === 2
+      //       ? "active"
+      //       : currentStepIndex > 2
+      //         ? "success"
+      //         : "pending",
+      //   action: {
+      //     label: "OPEN CHANNEL",
+      //     onClick: async () => {
+      //       // 1. Trigger the WS if we don't have data yet
+      //       if (!pendingChannelData) {
+      //         await createChannel();
+      //         // Wait briefly for WS or use a more robust promise-based listener
+      //         return;
+      //       }
+      //     },
+      //   },
+      // },
+      // {
+      //   id: "fund-channel",
+      //   title: "Fund Channel",
+      //   description: "Allocating L3 tokens to your trading session.",
+      //   status:
+      //     currentStepIndex === 4
+      //       ? "active"
+      //       : currentStepIndex > 4
+      //         ? "success"
+      //         : "pending",
+      //   action: {
+      //     label: "ALLOCATE $20",
+      //     onClick: async () => {
+      //       if (!address) return;
+      //       try {
+      //         const amount = parseUnits("20", 6);
+      //         await fundChannel(amount, address);
+      //         // Move to Final Step manually after funding
+      //         setCurrentStepIndex(4);
+      //       } catch (e) {
+      //         console.error("Funding failed", e);
+      //       }
+      //     },
+      //   },
+      // },
       {
         id: "enter-haki",
         title: "Trade Ready",
-        description: "L3 Session active. Welcome to the Haki clearing house.",
-        status: currentStepIndex === 3 ? "active" : "pending",
+        description: "L3 session is funded and active.",
+        status: currentStepIndex === 4 ? "success" : "pending",
         action: {
           label: "ENTER HAKI",
           onClick: () => {
@@ -138,6 +160,7 @@ export default function OnboardingManager() {
       currentStepIndex,
       requestSignature,
       createChannel,
+      fundChannel,
     ],
   );
 
@@ -145,7 +168,7 @@ export default function OnboardingManager() {
     <TransactionModal
       isOpen={isOpen}
       onClose={() => setIsOpen(false)}
-      title="HAKI ONBOARDING"
+      title="HAKI CLEARING SETUP"
       steps={steps}
       currentStepIndex={currentStepIndex}
       disableBackdropClose={true}

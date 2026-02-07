@@ -4,52 +4,132 @@ import { useState } from "react";
 import { useYellow } from "@/context/YellowProvider";
 import { createTransferMessage } from "@erc7824/nitrolite";
 import { parseUnits } from "viem";
-import { HAKI_ADDRESS, ASSET_ADDRESS } from "@/utils/consts";
+import { HAKI_VAULT } from "@/utils/consts";
+import { useAccount } from "wagmi";
+import { privateKeyToAccount } from "viem/accounts";
+
 
 export function useYellowTrade() {
-  const { activeChannelId, sessionSigner, sendMessage, status } = useYellow();
+  const { sessionSigner, sendMessage, status, activeChannelId } = useYellow();
+  const { address: walletAddress } = useAccount();
   const [isTrading, setIsTrading] = useState(false);
 
   const placeBet = async (
     amount: string,
+    marketId: string, // UUID from Supabase
+    optionId: string, // UUID from Supabase
+    shares: number, // Number of shares from your preview hook
   ) => {
-    console.log(parseUnits(amount, 6).toString());
-    if (status == "disconnected") {
-      console.warn("⚠️ Yellow session not active.");
+    if (status === "disconnected" || !sessionSigner || !walletAddress) {
+      console.warn("⚠️ Session or Wallet not ready.");
       return;
     }
 
     setIsTrading(true);
 
     try {
-      // The asset address used in your channel (ytest.usd)
-
-
+      // 1. Prepare L3 Transfer Parameters
       const params = {
-        destination: HAKI_ADDRESS as `0x${string}`,
+        destination: HAKI_VAULT as `0x${string}`,
         allocations: [
           {
-            // FIX: You need both asset AND destination inside the allocation
             asset: "ytest.usd",
-            destination: HAKI_ADDRESS, // Recipient address
+            destination: HAKI_VAULT,
             amount: parseUnits(amount, 6).toString(),
           },
         ],
       };
 
-      const transferMsg = await createTransferMessage(
-        sessionSigner,
-        params,
-      );
+      // 2. Generate the Signed Message for Yellow
+      // This creates the 'signedPayload' and 'signature' required by your DB
+      const transferMsg = await createTransferMessage(sessionSigner, params);
+      const parsedMsg = JSON.parse(transferMsg);
+      console.log("PARSED TRASNFER", parsedMsg.req);
 
+      // The nitrolite SDK returns [type, payload, signature]
+      const signedPayload =
+        parsedMsg.req[2].allocations[0].asset +
+        "-" +
+        parsedMsg.req[2].allocations[0].amount +
+        "-" +
+        parsedMsg.req[2].allocations[0].destination;
+      const signature = parsedMsg.sig[0];
+
+      // 3. Send to Yellow Network (L3 Collateral Move)
       sendMessage(transferMsg);
-      console.log(`🚀 Bet sent with asset ${ASSET_ADDRESS}`);
+
+      // 4. Sync to Supabase (Record Shares & Update AMM)
+      const dbResponse = await fetch("/api/market/trade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketId,
+          optionId,
+          shares,
+          signedPayload,
+          signature,
+          channelId: activeChannelId
+            ? activeChannelId
+            : "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          wallet: walletAddress,
+        }),
+      });
+
+      const dbData = await dbResponse.json();
+
+      if (!dbResponse.ok) {
+        throw new Error(dbData.error || "DB Trade execution failed");
+      }
+
+      console.log("✅ Trade Executed Successfully:", dbData.trade);
+      return dbData.trade;
     } catch (error) {
       console.error("❌ Haki Trade Error:", error);
+      throw error;
     } finally {
       setIsTrading(false);
     }
   };
 
-  return { placeBet, isTrading };
+  const sellShares = async (
+    amount: string, // Expected payout amount from preview
+    marketId: string,
+    optionId: string,
+    sharesToSell: number,
+  ) => {
+    if (status === "disconnected") return;
+    setIsTrading(true);
+    const sessionKey = localStorage.getItem("yellow_session_sk");
+    if (!sessionKey) throw new Error("Missing session key");
+
+    const account = privateKeyToAccount(sessionKey as `0x${string}`);
+    try {
+      const signedPayload = marketId + "-" + optionId + "-" + sharesToSell;
+      const signature = account.signMessage({ message: signedPayload });
+
+      // We hit the backend. The backend verifies this session signature
+      // and then its own Clearnode signs the actual payout.
+      const response = await fetch("/api/market/execute-sell", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketId,
+          optionId,
+          shares: -Math.abs(sharesToSell),
+          walletAddress,
+          signature, // Session signature
+          signedPayload,
+          channelId: activeChannelId
+            ? activeChannelId
+            : "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        }),
+      });
+
+      return await response.json();
+    } finally {
+      setIsTrading(false);
+    }
+  };
+
+  return { placeBet, sellShares, isTrading };
 }

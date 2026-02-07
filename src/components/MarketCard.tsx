@@ -92,7 +92,7 @@ export default function MarketCard({ marketLabel }: MarketCardProps) {
       <div className="card-header">
         <div className="market-label-chip">
           <span className="label-dot">●</span>
-          <span className="label-text">{marketLabel}.haki.eth</span>
+          <span className="label-text">{marketLabel}.haki-pm.eth</span>
         </div>
         <div className={`status-badge ${marketStatus.className}`}>
           <span className="status-pulse"></span>
@@ -104,27 +104,6 @@ export default function MarketCard({ marketLabel }: MarketCardProps) {
       <h3 className="market-card-title">
         {truncate(market.description || marketLabel, 120)}
       </h3>
-
-      {/* Options Preview */}
-      <div className="options-preview">
-        {options.slice(0, 3).map((option, index) => (
-          <div key={index} className="option-preview-item">
-            <div className="option-preview-bar">
-              <div
-                className="option-preview-fill"
-                style={{ width: `${option.odds}%` }}
-              ></div>
-            </div>
-            <div className="option-preview-details">
-              <span className="option-preview-name">{truncate(option.name, 25)}</span>
-              <span className="option-preview-odds">{option.odds}%</span>
-            </div>
-          </div>
-        ))}
-        {options.length > 3 && (
-          <div className="more-options">+{options.length - 3} more</div>
-        )}
-      </div>
 
       {/* Card Footer */}
       <div className="card-footer">

@@ -99,7 +99,7 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
       <div className="market-label-brutal">
         <span className="label-hash">#</span>
         {marketLabel}
-        <span className="label-domain">.haki.eth</span>
+        <span className="label-domain">.haki-pm.eth</span>
       </div>
 
       {/* Market Description */}
@@ -141,9 +141,7 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
         {canWithdraw && (
           /* WRAP THE BUTTON HERE */
           <div onClick={(e) => e.stopPropagation()}>
-            <WithdrawButton
-              marketTitle={marketLabel}
-            />
+            <WithdrawButton marketTitle={marketLabel} />
           </div>
         )}
 

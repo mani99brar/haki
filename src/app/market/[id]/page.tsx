@@ -1,38 +1,24 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import './market.css';
 import { useParams } from "next/navigation";
 import { useHakiContract } from "@/hooks/useHakiContract";
 import { useYellowTrade } from "@/hooks/yellow/useYellowTrade";
+import { useMarketData } from "@/hooks/useMarketTradePreview";
 
 interface MarketOption {
   id: string;
+  option_id: string;
   name: string;
-  odds: number;
-  price: number;
-  volume: number;
-  holders: number;
+  label: string;
+  probability: number;
+  current_price: number;
+  shares: number;
   userShares: number;
 }
-
-interface RecentBet {
-  id: string;
-  user: string;
-  outcome: string;
-  amount: number;
-  odds: number;
-  timestamp: string;
-}
-
-// Mock recent bets - replace with real data when available
-const MOCK_RECENT_BETS: RecentBet[] = [
-  { id: '1', user: 'CryptoTrader', outcome: 'Option 1', amount: 250, odds: 58, timestamp: '2m ago' },
-  { id: '2', user: 'MarketMaker', outcome: 'Option 2', amount: 500, odds: 28, timestamp: '5m ago' },
-  { id: '3', user: 'BetKing', outcome: 'Option 1', amount: 150, odds: 59, timestamp: '8m ago' },
-];
 
 export default function MarketPage() {
   const params = useParams();
@@ -40,7 +26,16 @@ export default function MarketPage() {
   const router = useRouter();
   const [betAmounts, setBetAmounts] = useState<{ [key: string]: string }>({});
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
-  const { placeBet, isTrading } = useYellowTrade();
+  const { placeBet, isTrading, sellShares } = useYellowTrade();
+  const currentAmount = parseFloat(betAmounts[selectedOutcome || ""] || "0");
+  const state = useMarketData(id, selectedOutcome, currentAmount);
+
+  useEffect(() => {
+    console.log("PREVIEW STATE");
+    console.log(selectedOutcome);
+    console.log(selectedOutcome ? Number(betAmounts[selectedOutcome]) : "NOPE");
+  }, [selectedOutcome, betAmounts]);
+  console.log("MARKET STATE", state);
 
   const handleBetAmountChange = (outcomeId: string, value: string) => {
     setBetAmounts({ ...betAmounts, [outcomeId]: value });
@@ -56,35 +51,51 @@ export default function MarketPage() {
 
   // Determine market status
   const marketStatus = useMemo(() => {
-    if (!market) return { label: 'Loading', className: 'loading' };
-    if (market.resolved) return { label: 'Resolved', className: 'resolved' };
-    if (isExpired) return { label: 'Resolving', className: 'resolving' };
-    return { label: 'Open', className: 'open' };
+    if (!market) return { label: "Loading", className: "loading" };
+    if (market.resolved) return { label: "Resolved", className: "resolved" };
+    if (isExpired) return { label: "Resolving", className: "resolving" };
+    return { label: "Open", className: "open" };
   }, [market, isExpired]);
 
-  // Generate market options with mock prices and user shares
+  // Generate market options from real data
   const marketOptions: MarketOption[] = useMemo(() => {
-    if (!market?.options) return [];
+    if (!state.options || state.options.length === 0) return [];
 
-    const baseOdds = [45, 30, 15, 10];
-    return market.options.map((option, index) => ({
-      id: index.toString(),
-      name: option,
-      odds: baseOdds[index] || Math.max(5, 60 - index * 10),
-      price: (baseOdds[index] || Math.max(5, 60 - index * 10)) / 100,
-      volume: Math.floor(Math.random() * 10000) + 5000,
-      holders: Math.floor(Math.random() * 200) + 50,
-      userShares: Math.floor(Math.random() * 100),
-    }));
-  }, [market?.options]);
+    // Calculate total liquidity to derive probabilities
+    const totalLiquidity = state.options.reduce(
+      (sum, opt) => sum + (opt.shares || 0),
+      0,
+    );
+
+    return state.options.map((option, index) => {
+      // 1. Find the user's position for this specific option UUID
+      const userPos = state.userPositions?.find(
+        (p) => p.option_id === option.option_id,
+      );
+      console.log("userPos", userPos);
+      console.log("statePos", state.userPositions);
+
+      return {
+        id: index.toString(),
+        option_id: option.option_id,
+        name: option.label,
+        label: option.label,
+        probability: option.probability,
+        current_price: option.marginal_price || 0,
+        // 2. Map the real shares held by the user (default to 0)
+        shares: option.shares,
+        userShares: userPos ? userPos.shares : 0,
+      };
+    });
+  }, [state.userPositions]);
 
   // Calculate time remaining
   const timeRemaining = useMemo(() => {
-    if (!market?.expiry) return 'No expiry set';
+    if (!market?.expiry) return "No expiry set";
     const now = Date.now() / 1000;
     const diff = market.expiry - now;
 
-    if (diff <= 0) return 'Expired';
+    if (diff <= 0) return "Expired";
 
     const days = Math.floor(diff / 86400);
     const hours = Math.floor((diff % 86400) / 3600);
@@ -101,21 +112,23 @@ export default function MarketPage() {
       amount,
       option: marketOptions.find((o) => o.id === optionId)?.name,
     });
-    placeBet(amount);
+    placeBet(amount, state.marketId!, optionId, currentAmount);
   };
 
   const handleSell = (optionId: string, shares: number) => {
-    console.log('💰 SELL', {
+    console.log("💰 SELL", {
       marketId: id,
       optionId,
       shares,
-      option: marketOptions.find(o => o.id === optionId)?.name,
+      option: marketOptions.find((o) => o.id === optionId)?.name,
     });
+    if (state.marketId == null) return;
+    sellShares("0", state?.marketId, optionId, shares);
   };
 
   // Truncate address for display
   const truncateAddress = (address: string) => {
-    if (!address) return 'Unknown';
+    if (!address) return "Unknown";
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
@@ -141,8 +154,11 @@ export default function MarketPage() {
           <div className="error-state">
             <div className="error-icon">⚠️</div>
             <h2>Market Not Found</h2>
-            <p>The market you&apos;re looking for doesn&apos;t exist or hasn&apos;t been created yet.</p>
-            <button onClick={() => router.push('/')} className="back-btn">
+            <p>
+              The market you&apos;re looking for doesn&apos;t exist or
+              hasn&apos;t been created yet.
+            </p>
+            <button onClick={() => router.push("/")} className="back-btn">
               ← Back to Home
             </button>
           </div>
@@ -171,12 +187,41 @@ export default function MarketPage() {
             </div>
 
             <div className="market-title-row">
-              <h1 className="market-question">
-                {market.label}.haki.eth
-              </h1>
-              <div className={`market-status ${marketStatus.className}`}>
-                <span className="status-dot"></span>
-                {marketStatus.label}
+              <h1 className="market-question">{market.label}.haki-pm.eth</h1>
+              <div
+                style={{ display: "flex", gap: "12px", alignItems: "center" }}
+              >
+                <div
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "10px",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "rgba(0, 212, 170, 0.15)",
+                    color: "var(--accent-teal)",
+                    border: "1px solid rgba(0, 212, 170, 0.3)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: "6px",
+                      height: "6px",
+                      borderRadius: "50%",
+                      background: "var(--accent-teal)",
+                      animation: "pulse 2s ease infinite",
+                    }}
+                  ></span>
+                  Live Data
+                </div>
+                <div className={`market-status ${marketStatus.className}`}>
+                  <span className="status-dot"></span>
+                  {marketStatus.label}
+                </div>
               </div>
             </div>
 
@@ -184,10 +229,10 @@ export default function MarketPage() {
               <div className="market-author">
                 <div className="author-avatar">⬢</div>
                 <div className="author-details">
-                  <div className="author-name">{truncateAddress(market.creator)}</div>
-                  <div className="author-stats">
-                    Market Creator
+                  <div className="author-name">
+                    {truncateAddress(market.creator)}
                   </div>
+                  <div className="author-stats">Market Creator</div>
                 </div>
               </div>
 
@@ -195,7 +240,7 @@ export default function MarketPage() {
                 <span className="market-tag sports">📊 Prediction Market</span>
                 {market.expiry > 0 && (
                   <span className="market-tag time">
-                    ⏰ {isExpired ? 'Expired' : `Closes in ${timeRemaining}`}
+                    ⏰ {isExpired ? "Expired" : `Closes in ${timeRemaining}`}
                   </span>
                 )}
               </div>
@@ -211,74 +256,147 @@ export default function MarketPage() {
             <div className="info-card">
               <h3 className="info-card-title">Market Details</h3>
               <p className="market-description text-xl">
-                {market.description || 'No description provided for this market.'}
+                {market.description ||
+                  "No description provided for this market."}
               </p>
 
               <div className="market-stats-row">
                 <div className="market-stat">
-                  <div className="market-stat-label">Total Volume</div>
+                  <div className="market-stat-label">Total Liquidity</div>
                   <div className="market-stat-value">
-                    ${marketOptions.reduce((sum, opt) => sum + opt.volume, 0).toLocaleString()}
+                    ${state.volume.toFixed(2)}
                   </div>
                 </div>
                 <div className="market-stat">
-                  <div className="market-stat-label">Total Holders</div>
+                  <div className="market-stat-label">Total Options</div>
                   <div className="market-stat-value">
-                    {marketOptions.reduce((sum, opt) => sum + opt.holders, 0)}
+                    {marketOptions.length}
                   </div>
                 </div>
-                <div className="market-stat">
+                {/* <div className="market-stat">
                   <div className="market-stat-label">Your Shares</div>
                   <div className="market-stat-value position">
-                    {marketOptions.reduce((sum, opt) => sum + opt.userShares, 0)}
+                    {marketOptions.reduce(
+                      (sum, opt) => sum + opt.userShares,
+                      0,
+                    )}
                   </div>
-                </div>
+                </div> */}
               </div>
             </div>
 
             {/* Outcomes Betting Card */}
             <div className="outcomes-card">
-              <h3 className="outcomes-card-title">
-                {isExpired || market.resolved ? 'Market Outcomes' : 'Place Your Trade'}
-              </h3>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "24px",
+                }}
+              >
+                <h3 className="outcomes-card-title" style={{ marginBottom: 0 }}>
+                  {isExpired || market.resolved
+                    ? "Market Outcomes"
+                    : "Place Your Trade"}
+                </h3>
+                {state.isOptionsLoading && (
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--accent-teal)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    <span style={{ animation: "spin 1s linear infinite" }}>
+                      ⟳
+                    </span>
+                    Loading data...
+                  </div>
+                )}
+              </div>
 
               <div className="outcomes-list">
+                {marketOptions.length === 0 && !state.isOptionsLoading ? (
+                  <div
+                    style={{
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      color: "var(--text-secondary)",
+                      background: "var(--bg-elevated)",
+                      borderRadius: "16px",
+                      border: "2px dashed var(--border-subtle)",
+                    }}
+                  >
+                    <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+                      📊
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 600,
+                        marginBottom: "8px",
+                      }}
+                    >
+                      No options available
+                    </div>
+                    <div style={{ fontSize: "14px" }}>
+                      Market data will appear here once loaded
+                    </div>
+                  </div>
+                ) : null}
                 {marketOptions.map((option) => {
-                  const betAmount = betAmounts[option.id] ? parseFloat(betAmounts[option.id]) : 0;
-                  const expectedPayout = betAmount > 0 ? betAmount / option.price : 0;
-                  const potentialProfit = expectedPayout - betAmount;
+                  const betAmount = betAmounts[option.label]
+                    ? parseFloat(betAmounts[option.label])
+                    : 0;
 
                   return (
                     <div
                       key={option.id}
-                      className={`outcome-bet-card ${selectedOutcome === option.id ? "selected" : ""}`}
-                      onClick={() => !isExpired && !market.resolved && setSelectedOutcome(option.id)}
+                      className={`outcome-bet-card ${selectedOutcome === option.label ? "selected" : ""}`}
+                      onClick={() =>
+                        !isExpired &&
+                        !market.resolved &&
+                        setSelectedOutcome(option.label)
+                      }
                     >
                       <div className="outcome-header">
                         <div className="outcome-info">
-                          <span className="outcome-emoji">
-                            {option.id === '0' ? '🥇' : option.id === '1' ? '🥈' : option.id === '2' ? '🥉' : '◆'}
-                          </span>
                           <span className="outcome-name">{option.name}</span>
                         </div>
-                        <div className="outcome-odds-badge">{option.odds}%</div>
+                        <div className="outcome-odds-badge">
+                          {(Number(option.probability) * 100).toFixed(2)}%
+                        </div>
                       </div>
 
                       <div className="outcome-stats">
                         <div className="outcome-stat-item">
                           <span className="outcome-stat-label">Price</span>
                           <span className="outcome-stat-value">
-                            ${option.price.toFixed(2)}
+                            ${option.current_price.toFixed(4)}
                           </span>
                         </div>
-                        <div className="outcome-stat-item">
-                          <span className="outcome-stat-label">Volume</span>
+                        {/* <div className="outcome-stat-item">
+                          <span className="outcome-stat-label">Liquidity</span>
                           <span className="outcome-stat-value">
-                            ${option.volume.toLocaleString()}
+                            ${option.liquidity.toFixed(2)}
+                          </span>
+                        </div> */}
+                        <div className="outcome-stat-item">
+                          <span className="outcome-stat-label">
+                            Total Shares
+                          </span>
+                          <span className="outcome-stat-value">
+                            {option.shares}
                           </span>
                         </div>
                         <div className="outcome-stat-item">
-                          <span className="outcome-stat-label">Your Shares</span>
+                          <span className="outcome-stat-label">
+                            Your Shares
+                          </span>
                           <span className="outcome-stat-value">
                             {option.userShares}
                           </span>
@@ -289,16 +407,20 @@ export default function MarketPage() {
                         <>
                           <div className="bet-input-section">
                             <div className="bet-input-wrapper">
-                              <span className="bet-input-label">Amount (USD)</span>
+                              <span className="bet-input-label">
+                                No. of Shares
+                              </span>
                               <div className="bet-input-container">
-                                <span className="bet-input-symbol">$</span>
                                 <input
                                   type="number"
                                   className="bet-input"
                                   placeholder="0.00"
-                                  value={betAmounts[option.id] || ""}
+                                  value={betAmounts[option.label] || ""}
                                   onChange={(e) =>
-                                    handleBetAmountChange(option.id, e.target.value)
+                                    handleBetAmountChange(
+                                      option.label,
+                                      e.target.value,
+                                    )
                                   }
                                   onClick={(e) => e.stopPropagation()}
                                   min="0"
@@ -315,12 +437,12 @@ export default function MarketPage() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleBetAmountChange(
-                                      option.id,
+                                      option.label,
                                       amount.toString(),
                                     );
                                   }}
                                 >
-                                  ${amount}
+                                  {amount}
                                 </button>
                               ))}
                             </div>
@@ -328,22 +450,53 @@ export default function MarketPage() {
 
                           {betAmount > 0 && (
                             <div className="payout-preview">
-                              <div className="payout-row">
-                                <span className="payout-label">
-                                  Expected Shares
-                                </span>
-                                <span className="payout-value">
-                                  {expectedPayout.toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="payout-row profit">
-                                <span className="payout-label">
-                                  Potential Profit (if wins)
-                                </span>
-                                <span className="payout-value profit">
-                                  +${potentialProfit.toFixed(2)}
-                                </span>
-                              </div>
+                              {state.isLoading ? (
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "8px",
+                                    padding: "8px",
+                                    color: "var(--text-secondary)",
+                                    fontSize: "14px",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      animation: "spin 1s linear infinite",
+                                    }}
+                                  >
+                                    ⟳
+                                  </span>
+                                  Calculating...
+                                </div>
+                              ) : (
+                                <>
+                                  {state.preview.cost !== null &&
+                                    state.preview.avgPrice !== null && (
+                                      <>
+                                        <div className="payout-row">
+                                          <span className="payout-label">
+                                            Estimated Cost
+                                          </span>
+                                          <span className="payout-value">
+                                            ${state.preview.cost.toFixed(4)}
+                                          </span>
+                                        </div>
+                                        <div className="payout-row">
+                                          <span className="payout-label">
+                                            Average Price
+                                          </span>
+                                          <span className="payout-value">
+                                            ${state.preview.avgPrice.toFixed(4)}
+                                          </span>
+                                        </div>
+                                      </>
+                                    )}
+                                </>
+                              )}
                             </div>
                           )}
 
@@ -353,19 +506,25 @@ export default function MarketPage() {
                               disabled={betAmount <= 0}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleBuy(option.id, betAmounts[option.id]);
+                                handleBuy(
+                                  option.option_id,
+                                  betAmounts[option.label],
+                                );
                               }}
                             >
                               <span className="place-bet-icon">🎯</span>
                               Buy Shares
                             </button>
 
-                            {option.userShares > 0 && (
+                            {option.shares > 0 && (
                               <button
                                 className="place-bet-btn sell"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleSell(option.id, option.userShares);
+                                  handleSell(
+                                    option.option_id,
+                                    option.userShares,
+                                  );
                                 }}
                               >
                                 <span className="place-bet-icon">💰</span>
@@ -379,7 +538,9 @@ export default function MarketPage() {
                       {(isExpired || market.resolved) && (
                         <div className="market-closed-notice">
                           <span className="closed-icon">🔒</span>
-                          {market.resolved ? 'Market Resolved' : 'Market Resolving'}
+                          {market.resolved
+                            ? "Market Resolved"
+                            : "Market Resolving"}
                         </div>
                       )}
                     </div>
@@ -391,47 +552,26 @@ export default function MarketPage() {
 
           {/* Right Column - Stats & Activity */}
           <div className="market-sidebar">
-            {/* Odds Distribution */}
+            {/* Probability Distribution */}
             <div className="sidebar-card">
-              <h3 className="sidebar-card-title">Odds Distribution</h3>
+              <h3 className="sidebar-card-title">Probability Distribution</h3>
               <div className="odds-chart">
-                {marketOptions.map((option) => (
+                {marketOptions.map((option, index) => (
                   <div key={option.id} className="odds-bar-wrapper">
                     <div className="odds-bar-header">
-                      <span className="odds-bar-label">
-                        {option.name}
-                      </span>
+                      <span className="odds-bar-label">{option.name}</span>
                       <span className="odds-bar-percentage">
-                        {option.odds}%
+                        {(Number(option.probability) * 100).toFixed(2)}%
                       </span>
                     </div>
                     <div className="odds-bar">
                       <div
                         className="odds-bar-fill"
-                        style={{ width: `${option.odds}%` }}
+                        style={{
+                          width: `${Number(option.probability) * 100}%`,
+                          animationDelay: `${index * 0.1}s`,
+                        }}
                       ></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Recent Activity */}
-            <div className="sidebar-card activity-card">
-              <h3 className="sidebar-card-title">Recent Activity</h3>
-              <div className="activity-list">
-                {MOCK_RECENT_BETS.map((bet) => (
-                  <div key={bet.id} className="activity-item">
-                    <div className="activity-user-avatar">{bet.user[0]}</div>
-                    <div className="activity-details">
-                      <div className="activity-user">{bet.user}</div>
-                      <div className="activity-action">
-                        Traded ${bet.amount} on <strong>{bet.outcome}</strong>
-                      </div>
-                    </div>
-                    <div className="activity-meta">
-                      <div className="activity-odds">{bet.odds}%</div>
-                      <div className="activity-time">{bet.timestamp}</div>
                     </div>
                   </div>
                 ))}
@@ -444,7 +584,9 @@ export default function MarketPage() {
               <div className="market-info-list">
                 <div className="market-info-item">
                   <span className="info-label">Creator</span>
-                  <span className="info-value">{truncateAddress(market.creator)}</span>
+                  <span className="info-value">
+                    {truncateAddress(market.creator)}
+                  </span>
                 </div>
                 <div className="market-info-item">
                   <span className="info-label">Options</span>
@@ -460,7 +602,9 @@ export default function MarketPage() {
                 )}
                 <div className="market-info-item">
                   <span className="info-label">Status</span>
-                  <span className={`info-value status-${marketStatus.className}`}>
+                  <span
+                    className={`info-value status-${marketStatus.className}`}
+                  >
                     {marketStatus.label}
                   </span>
                 </div>

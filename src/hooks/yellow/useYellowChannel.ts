@@ -6,12 +6,18 @@ import {
   createCloseChannelMessage,
 } from "@erc7824/nitrolite";
 import { Address } from "viem";
-import { ASSET_ADDRESS } from "@/utils/consts";
+import { ASSET_ADDRESS, YELLOW_ADJUDICATOR_ADDRESS } from "@/utils/consts";
+import { AdjudicatorAbi } from "@erc7824/nitrolite";
+import { useWriteContract } from "wagmi";
+import { useWalletClient } from "wagmi";
+
 
 export function useYellowChannel() {
   // Consume global state
   const { ws, status, activeChannelId, sessionSigner, sendMessage, client } =
     useYellow();
+const { writeContractAsync } = useWriteContract();
+  
 
   console.log("FROM YELLOWCHANNEL", activeChannelId);
 
@@ -95,6 +101,38 @@ export function useYellowChannel() {
     [activeChannelId, ws, sessionSigner, sendMessage],
   );
 
+  const activateChannelOnChain = async (data: any) => {
+    if (!sessionSigner) throw new Error("Session signer not ready");
+
+    setIsProcessing(true);
+    try {
+      // 1. Generate the user's part of the signature
+      // The contract requires a 2-of-2 signature (Server + User)
+      const userSignature = await sessionSigner.signMessage(data.channel_id);
+
+      // 2. Submit to the browser wallet
+      // This will produce the exact 0x4a7e7798... hex you saw earlier
+      const hash = await writeContractAsync({
+        address: YELLOW_ADJUDICATOR_ADDRESS,
+        abi: AdjudicatorAbi,
+        functionName: "openChannel",
+        args: [
+          data.channel,
+          data.state,
+          [data.server_signature, userSignature], // Both sigs go here
+        ],
+      });
+
+      console.log("🚀 On-chain Activation Hash:", hash);
+      return hash;
+    } catch (error) {
+      console.error("Wallet transaction failed:", error);
+      throw error;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Inside useYellowChannel hook
   const settleOnChain = async (amount: bigint) => {
     if (!client || !activeChannelId) throw new Error("Client not ready");
@@ -125,5 +163,6 @@ export function useYellowChannel() {
     isProcessing,
     closeChannel,
     settleOnChain,
+    activateChannelOnChain,
   };
 }

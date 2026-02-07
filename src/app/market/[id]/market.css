@@ -4,6 +4,23 @@
   margin-top: var(--nav-height);
   min-height: calc(100vh - var(--nav-height));
   animation: fadeIn 0.6s ease;
+  position: relative;
+}
+
+.market-container::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 50px 50px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
 }
 
 @keyframes fadeIn {
@@ -101,6 +118,8 @@
   border-bottom: 1px solid var(--border-subtle);
   padding: 40px 32px 32px;
   animation: headerSlide 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  z-index: 1;
 }
 
 @keyframes headerSlide {
@@ -291,6 +310,8 @@
   animation: gridFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
   animation-delay: 0.2s;
   animation-fill-mode: both;
+  position: relative;
+  z-index: 1;
 }
 
 @keyframes gridFadeIn {
@@ -438,7 +459,11 @@
 .outcome-bet-card.selected {
   border-color: var(--accent-coral);
   background: var(--bg-card);
-  box-shadow: 0 0 0 4px rgba(255, 107, 74, 0.15);
+  box-shadow:
+    0 0 0 4px rgba(255, 107, 74, 0.15),
+    0 12px 40px rgba(255, 107, 74, 0.25),
+    0 0 60px rgba(0, 212, 170, 0.1);
+  transform: translateY(-4px) scale(1.01);
 }
 
 .outcome-header {
@@ -465,14 +490,53 @@
 }
 
 .outcome-odds-badge {
-  padding: 8px 16px;
+  padding: 10px 18px;
   background: linear-gradient(135deg, var(--accent-coral), var(--accent-teal));
-  border-radius: 10px;
+  border-radius: 12px;
   font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 800;
+  font-size: 24px;
+  font-weight: 900;
   color: white;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  box-shadow: 0 4px 16px rgba(255, 107, 74, 0.4);
+  position: relative;
+  overflow: hidden;
+  animation: probabilityPulse 3s ease-in-out infinite;
+}
+
+.outcome-odds-badge::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  transform: rotate(45deg);
+  animation: shimmer 3s infinite;
+}
+
+@keyframes probabilityPulse {
+  0%, 100% {
+    box-shadow: 0 4px 16px rgba(255, 107, 74, 0.4);
+  }
+  50% {
+    box-shadow: 0 4px 24px rgba(255, 107, 74, 0.6), 0 0 32px rgba(0, 212, 170, 0.3);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%) translateY(-100%) rotate(45deg);
+  }
+  100% {
+    transform: translateX(100%) translateY(100%) rotate(45deg);
+  }
 }
 
 .outcome-stats {
@@ -487,6 +551,32 @@
   padding: 12px;
   background: var(--bg-card);
   border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.outcome-stat-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-coral), var(--accent-teal));
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.outcome-bet-card:hover .outcome-stat-item::before {
+  transform: scaleX(1);
+}
+
+.outcome-stat-item:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent-coral);
+  transform: translateY(-2px);
 }
 
 .outcome-stat-label {
@@ -749,6 +839,19 @@
   color: var(--text-primary);
   margin-bottom: 20px;
   letter-spacing: -0.01em;
+  position: relative;
+  padding-bottom: 12px;
+}
+
+.sidebar-card-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-coral), var(--accent-teal));
+  border-radius: 2px;
 }
 
 /* Odds Chart */
@@ -756,12 +859,54 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  position: relative;
+  padding: 16px;
+  background: var(--bg-elevated);
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+}
+
+.odds-chart::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 107, 74, 0.1),
+    rgba(0, 212, 170, 0.1),
+    rgba(167, 139, 250, 0.1)
+  );
+  border-radius: 12px;
+  opacity: 0.5;
+  z-index: -1;
+  animation: chartGlow 4s ease-in-out infinite;
+}
+
+@keyframes chartGlow {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .odds-bar-wrapper {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 8px;
+  background: var(--bg-card);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.odds-bar-wrapper:hover {
+  background: var(--bg-hover);
+  transform: translateX(4px);
 }
 
 .odds-bar-header {
@@ -777,9 +922,14 @@
 }
 
 .odds-bar-percentage {
-  font-size: 14px;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
   color: var(--accent-coral);
+  background: rgba(255, 107, 74, 0.1);
+  padding: 4px 12px;
+  border-radius: 8px;
+  letter-spacing: -0.01em;
 }
 
 .odds-bar {
@@ -794,6 +944,46 @@
   background: linear-gradient(90deg, var(--accent-coral), var(--accent-teal));
   border-radius: 6px;
   transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+  animation: barGrow 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: left;
+}
+
+.odds-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: barShimmer 2s infinite;
+}
+
+@keyframes barGrow {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes barShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 /* Activity Card */
