@@ -96,12 +96,12 @@ export default function MarketCard({ marketLabel }: MarketCardProps) {
         <div className="market-label-chip">
           <span className="label-dot">●</span>
           <a
-            href={`https://sepolia.app.ens.domains/${marketLabel}.haki-pm.eth`}
+            href={`https://sepolia.app.ens.domains/${marketLabel}.haki-o.eth`}
             target="_blank"
             rel="noopener noreferrer"
             className="market-ens-link"
           >
-            <span className="label-text">{marketLabel}.haki-pm.eth</span>
+            <span className="label-text">{marketLabel}.haki-o.eth</span>
             <span className="external-icon">↗</span>
           </a>
         </div>

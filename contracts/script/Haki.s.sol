@@ -19,7 +19,7 @@ contract DeployHaki is Script {
         // 1. Calculate the Namehash for your platform (e.g., "haki-pm.eth")
         // namehash("haki-pm.eth") = keccak256(abi.encodePacked(namehash("eth"), keccak256("haki")))
         bytes32 ethNode = keccak256(abi.encodePacked(bytes32(0), keccak256("eth")));
-        bytes32 hakiNode = keccak256(abi.encodePacked(ethNode, keccak256("haki-pm")));
+        bytes32 hakiNode = keccak256(abi.encodePacked(ethNode, keccak256("haki-o")));
 
         vm.startBroadcast(deployerPrivateKey);
 

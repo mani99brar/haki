@@ -11,7 +11,7 @@ import { useCallback, useEffect } from "react";
 import { ResolutionStrategy } from "@/app/create/page";
 
 const RESOLVER_ADDRESS = "0xE99638b40E4Fff0129D56f03b55b6bbC4BBE49b5";
-const PARENT_NODE = namehash("haki-pm.eth");
+const PARENT_NODE = namehash("haki-o.eth");
 
 export function useHakiContract(label?: string) {
   const subnode = label

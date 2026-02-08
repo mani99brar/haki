@@ -40,103 +40,100 @@ export async function POST(req: NextRequest) {
     //     { status: 409 },
     //   );
     // }
-      let winningLabel = "";
-      let justification = "";
-      if (market.resolution_type !== "oracle") {
-        const { data: options, error: optionsError } = await supabase.rpc(
-          "get_market_options",
-          { p_market: marketId },
+    let winningLabel = "";
+    let justification = "";
+    if (market.resolution_type !== "oracle") {
+      const { data: options, error: optionsError } = await supabase.rpc(
+        "get_market_options",
+        { p_market: marketId },
+      );
+      if (optionsError || !options || options.length < 2) {
+        return NextResponse.json(
+          { error: "Failed to fetch market prices" },
+          { status: 500 },
         );
-        if (optionsError || !options || options.length < 2) {
-          return NextResponse.json(
-            { error: "Failed to fetch market prices" },
-            { status: 500 },
-          );
-        }
-        const sorted = [...options].sort(
-          (a: any, b: any) =>
-            b.marginal_price - a.marginal_price ||
-            a.option_id.localeCompare(b.option_id),
-        );
+      }
+      const sorted = [...options].sort(
+        (a: any, b: any) =>
+          b.marginal_price - a.marginal_price ||
+          a.option_id.localeCompare(b.option_id),
+      );
 
-        const winning = sorted[0];
-        winningLabel = winning.label;
-        justification =
-          "Resolved by LMSR oracle. Winner has highest marginal price.";
-      } else {
-        // --------------------------------------------------
-        // 2️⃣ Fetch options
-        // --------------------------------------------------
-        const { data: options, error: optionsError } = await supabase
-          .from("options")
-          .select("id, label")
-          .eq("market_id", marketId);
+      const winning = sorted[0];
+      winningLabel = winning.label;
+      justification =
+        "Resolved by LMSR oracle. Winner has highest marginal price.";
+    } else {
+      // --------------------------------------------------
+      // 2️⃣ Fetch options
+      // --------------------------------------------------
+      const { data: options, error: optionsError } = await supabase
+        .from("options")
+        .select("id, label")
+        .eq("market_id", marketId);
 
-        if (optionsError || !options || options.length < 2) {
-          return NextResponse.json(
-            { error: "Invalid market options" },
-            { status: 400 },
-          );
-        }
-
-        const labels = options.map((o) => o.label);
-
-        // --------------------------------------------------
-        // 3️⃣ Call oracle (pure function)
-        // --------------------------------------------------
-        const probabilities = await predictProbabilities(
-          market.question,
-          labels,
-        );
-        // --------------------------------------------------
-        // 4️⃣ Deterministically select winner
-        // --------------------------------------------------
-        const sorted = Object.entries(probabilities).sort(
-          (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
-        );
-
-        const [aiWinningLabel, winningProb] = sorted[0];
-
-        const winningOption = options.find((o) => o.label === aiWinningLabel);
-
-        if (!winningOption) {
-          throw new Error("Oracle returned unknown option label");
-        }
-        winningLabel = winningOption.label;
-        justification = stringToHex(
-          `Resolved by AI Oracle. Winner: ${winningLabel} with ${(winningProb * 100).toFixed(1)}% confidence.`,
+      if (optionsError || !options || options.length < 2) {
+        return NextResponse.json(
+          { error: "Invalid market options" },
+          { status: 400 },
         );
       }
 
-      const apiUrl = `${getBaseUrl()}/api/merkleroot`;
+      const labels = options.map((o) => o.label);
 
-      const merkleResponse = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          marketId: marketId,
-          optionLabel: winningLabel, // Passing the label we just determined
-        }),
-      });
-      const data = await merkleResponse.json();
-      if (!merkleResponse.ok)
-        throw new Error(data.error || "Failed to generate state root");
-      const stateRoot = data.merkleRoot as Hex;
-
-      const account = privateKeyToAccount(
-        process.env.HAKI_VAULT_PRIVATE_KEY! as `0x${string}`,
+      // --------------------------------------------------
+      // 3️⃣ Call oracle (pure function)
+      // --------------------------------------------------
+      const probabilities = await predictProbabilities(market.question, labels);
+      // --------------------------------------------------
+      // 4️⃣ Deterministically select winner
+      // --------------------------------------------------
+      const sorted = Object.entries(probabilities).sort(
+        (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
       );
 
-      const client = createWalletClient({
-        account,
-        chain: sepolia,
-        transport: http(), // or default http()
-      });
+      const [aiWinningLabel, winningProb] = sorted[0];
 
-      // Calculate ENS Node: namehash("label.haki-pm.eth")
-      const node = namehash(`${marketLabel}.haki-pm.eth`);
+      const winningOption = options.find((o) => o.label === aiWinningLabel);
+
+      if (!winningOption) {
+        throw new Error("Oracle returned unknown option label");
+      }
+      winningLabel = winningOption.label;
+      justification = stringToHex(
+        `Resolved by AI Oracle. Winner: ${winningLabel} with ${(winningProb * 100).toFixed(1)}% confidence.`,
+      );
+    }
+
+    const apiUrl = `${getBaseUrl()}/api/merkleroot`;
+
+    const merkleResponse = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        marketId: marketId,
+        optionLabel: winningLabel, // Passing the label we just determined
+      }),
+    });
+    const data = await merkleResponse.json();
+    if (!merkleResponse.ok)
+      throw new Error(data.error || "Failed to generate state root");
+    const stateRoot = data.merkleRoot as Hex;
+
+    const account = privateKeyToAccount(
+      process.env.HAKI_VAULT_PRIVATE_KEY! as `0x${string}`,
+    );
+
+    const client = createWalletClient({
+      account,
+      chain: sepolia,
+      transport: http(), // or default http()
+    });
+
+    // Calculate ENS Node: namehash("label.haki-o.eth")
+    const node = namehash(`${marketLabel}.haki-o.eth`);
 
     console.log(`Submitting result for node: ${node}`);
     console.log(`Winner: ${winningLabel}, Root: ${stateRoot}`);

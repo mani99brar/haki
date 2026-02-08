@@ -128,7 +128,7 @@ export default function CreatePage() {
                   }
                   maxLength={32}
                 />
-                <div className="label-suffix">.haki-pm.eth</div>
+                <div className="label-suffix">.haki-o.eth</div>
               </div>
             </div>
 

@@ -1,7 +1,7 @@
 import { getAddress } from "viem";
 export const ASSET_ADDRESS = getAddress("0xDB9F293e3898c9E5536A3be1b0C56c89d2b32DEb");
 export const HAKI_ADDRESS = getAddress(
-  "0x609938B0c60E26784354bdE059106B324F6d7FeD",
+  "0x10e80b3a74199198e03b697a92a335b5e26e2412",
 );
 export const YELLOW_ADJUDICATOR_ADDRESS = getAddress(
   "0x7c7ccbc98469190849BCC6c926307794fDfB11F2",

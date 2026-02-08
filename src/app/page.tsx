@@ -176,10 +176,11 @@ export default function Home() {
             </div>
             <div className="feature-card">
               <div className="feature-icon">⚡</div>
-              <h3 className="feature-title">Instant Settlement</h3>
+              <h3 className="feature-title">Instant Confirmation</h3>
               <p className="feature-description">
-                Trade executes immediately on-chain. Get your winnings as soon
-                as the market resolves.
+                Trade executes immediately off-chain which are pushed on-chain
+                in future. Get your winnings as soon as the market resolves
+                on-chain.
               </p>
             </div>
             <div className="feature-card">

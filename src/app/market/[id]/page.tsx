@@ -264,12 +264,12 @@ export default function MarketPage() {
             <div className="market-title-row">
               <h1 className="market-question">
                 <a
-                  href={`https://sepolia.app.ens.domains/${market.label}.haki-pm.eth`}
+                  href={`https://sepolia.app.ens.domains/${market.label}.haki-o.eth`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="ens-link"
                 >
-                  {market.label}.haki-pm.eth
+                  {market.label}.haki-o.eth
                 </a>
               </h1>
               <div
