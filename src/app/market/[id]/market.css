@@ -990,7 +990,17 @@
   color: var(--text-secondary);
   margin-top: 16px;
 }
-
+.winner-badge {
+  font-size: 12px;
+  background: var(--accent-teal);
+  color: #000;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-left: 12px;
+  font-weight: 900;
+  border: 1px solid #000;
+  animation: pulse 2s infinite;
+}
 .closed-icon {
   font-size: 24px;
 }
@@ -1449,7 +1459,7 @@
   display: inline-block;
 }
 
-.resolution-hash {
+#resolution-hash {
   font-family: 'Courier New', monospace;
   font-size: 12px;
   color: var(--text-tertiary);
@@ -1471,17 +1481,7 @@
   order: -1; /* Move winner to top if you use flex column */
 }
 
-.winner-badge {
-  font-size: 12px;
-  background: var(--accent-teal);
-  color: #000;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin-left: 12px;
-  font-weight: 900;
-  border: 1px solid #000;
-  animation: pulse 2s infinite;
-}
+
 
 /* LOSER CARD */
 .outcome-bet-card.loser-card {
@@ -1497,6 +1497,229 @@
   color: #000;
   border: 2px solid #000;
   font-weight: 900;
+}
+/* =========================================
+   1. RESOLUTION BANNERS (Top of Market)
+   ========================================= */
+
+/* Base Resolution Card */
+.resolution-result-card {
+  background: rgba(0, 212, 170, 0.1); /* Teal Tint */
+  border: 3px solid var(--accent-teal);
+  box-shadow: 6px 6px 0px var(--accent-teal);
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 32px;
+  animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Pending / Settling State (Orange/Yellow) */
+.resolution-result-card.pending {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: var(--accent-yellow);
+  box-shadow: 6px 6px 0px var(--accent-yellow);
+}
+
+.res-icon-wrapper {
+  font-size: 42px;
+  background: #fff;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #000;
+  box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+  border-radius: 50%;
+}
+
+.res-content h3 {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+}
+
+.res-content p {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Winner Name Highlight */
+.winner-highlight {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 900;
+  color: #fff;
+  background: var(--accent-teal);
+  padding: 4px 12px;
+  border: 2px solid #000;
+  margin-left: 12px;
+  box-shadow: 4px 4px 0px #000;
+  transform: rotate(-2deg);
+  display: inline-block;
+}
+
+/* Pending Winner Highlight */
+.winner-highlight.pending {
+  background: var(--bg-card);
+  color: var(--accent-yellow);
+  border-style: dashed;
+}
+
+.resolution-hash {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 12px;
+  background: rgba(0,0,0,0.05);
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+/* =========================================
+   2. ORACLE ACTION CARD
+   ========================================= */
+
+.resolution-action-card {
+  background: var(--bg-card);
+  border: 4px solid #000;
+  box-shadow: 8px 8px 0px #000;
+  padding: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  gap: 24px;
+  animation: slideIn 0.4s ease-out;
+}
+
+.resolve-oracle-btn {
+  background: #a855f7; /* Purple */
+  color: #fff;
+  border: 3px solid #000;
+  padding: 14px 24px;
+  font-family: 'Courier New', monospace;
+  font-weight: 900;
+  font-size: 16px;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+  box-shadow: 4px 4px 0px #000;
+}
+
+.resolve-oracle-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px #000;
+  background: #9333ea;
+}
+
+.resolve-oracle-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px #000;
+}
+
+/* =========================================
+   3. OUTCOME CARD STATES (Winner/Loser)
+   ========================================= */
+
+/* Winner Card */
+.outcome-bet-card.winner-card {
+  border: 3px solid var(--accent-teal);
+  background: rgba(0, 212, 170, 0.05);
+  box-shadow: 0 12px 24px rgba(0, 212, 170, 0.15);
+  transform: scale(1.02);
+  z-index: 2;
+  order: -1; /* Moves to top of flex container */
+}
+
+.winner-badge {
+  font-size: 11px;
+  background: var(--accent-teal);
+  color: #000;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 12px;
+  font-weight: 900;
+  border: 1px solid #000;
+  animation: pulse 2s infinite;
+  vertical-align: middle;
+}
+
+/* Loser Card */
+.outcome-bet-card.loser-card {
+  opacity: 0.6;
+  filter: grayscale(0.8);
+  border-color: var(--border-subtle);
+  background: var(--bg-elevated);
+}
+
+/* Market Closed Footer - Winner Variant */
+.market-closed-notice.winner {
+  background: var(--accent-teal);
+  color: #000;
+  border: 2px solid #000;
+  font-weight: 900;
+  opacity: 1;
+}
+
+/* =========================================
+   4. HEADER STATUS PILLS
+   ========================================= */
+
+/* Settling (Challenge Period) */
+.market-status.settling {
+  background: rgba(251, 146, 60, 0.15); /* Orange Tint */
+  color: #ea580c;
+  border: 2px solid rgba(251, 146, 60, 0.3);
+}
+
+/* Resolving (Input Needed) */
+.market-status.resolving {
+  background: rgba(251, 191, 36, 0.15); /* Yellow Tint */
+  color: var(--accent-yellow);
+  border: 2px solid rgba(251, 191, 36, 0.3);
+}
+
+/* Resolved */
+.market-status.resolved {
+  background: rgba(0, 212, 170, 0.15); /* Teal Tint */
+  color: var(--accent-teal);
+  border: 2px solid rgba(0, 212, 170, 0.3);
+}
+
+/* =========================================
+   5. ANIMATIONS & MEDIA QUERIES
+   ========================================= */
+
+@keyframes slideIn {
+  from { transform: translateY(-10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .resolution-action-card {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .resolve-oracle-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 }
 

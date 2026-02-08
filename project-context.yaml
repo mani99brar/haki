@@ -1,0 +1,153 @@
+project:
+  name: haki
+  description: |
+    Next.js + Supabase + Yellow (Nitrolite) front-end for markets trading.
+    This context file summarizes components, hooks, API endpoints, data models,
+    flows, state machines, and mermaid/PlantUML snippets you can use to
+    generate flow and state diagrams.
+  language: TypeScript
+  framework: Next.js (app router)
+
+components:
+  - name: YellowProvider
+    path: src/context/YellowProvider.tsx
+    responsibility: Manages Yellow session, `sessionSigner`, `sendMessage`, `status`, `activeChannelId`.
+  - name: MarketCard
+    path: src/components/MarketCard.tsx
+    responsibility: Displays market summary and actions (buy/sell preview).
+  - name: TransactionModal
+    path: src/components/TransactionModal.tsx
+    responsibility: UI for placing trades and showing status messages.
+
+hooks:
+  - name: useYellowTrade
+    path: src/hooks/yellow/useYellowTrade.ts
+    summary: |
+      Hooks to `placeBet` and `sellShares` via Yellow session + backend.
+      Coordinates: session signer -> createTransferMessage -> sendMessage -> backend /api/market endpoints.
+    key_state:
+      - isTrading: boolean
+      - message: string
+      - error: string
+    external_calls:
+      - createTransferMessage(sessionSigner, params)
+      - sendMessage(transferMsg)
+      - POST /api/market/trade
+      - POST /api/market/execute-sell
+
+apis:
+  - endpoint: /api/market/trade
+    method: POST
+    purpose: Persist trade (shares), update AMM, store signedPayload + signature for Yellow transfer.
+  - endpoint: /api/market/execute-sell
+    method: POST
+    purpose: Backend verifies session signature, executes sell, and performs payout.
+
+data_models:
+  - Market:
+      id: uuid
+      title: string
+      options: [Option]
+  - Option:
+      id: uuid
+      type: string
+      price: number
+  - Trade:
+      id: uuid
+      marketId: uuid
+      optionId: uuid
+      shares: number
+      wallet: address
+      signedPayload: string
+      signature: string
+
+entities:
+  - SessionSigner: Yellow session signer object (from `useYellow`).
+  - Channel: activeChannelId (UUID) used for Yellow messages.
+  - Vault: HAKI_VAULT (L3 destination address for transfers).
+
+flows:
+  - name: Place Bet (Buy shares)
+    brief: Create L3 transfer via Yellow, then record trade in DB.
+    steps:
+      - Prepare L3 transfer params: destination, allocations (asset, amount, destination)
+      - createTransferMessage(sessionSigner, params) -> signedPayload + signature
+      - sendMessage(transferMsg) -> broadcast to Yellow
+      - POST /api/market/trade with marketId, optionId, shares, signedPayload, signature, channelId, wallet
+      - DB returns trade or error
+    success: trade object returned
+    failure: rollback UI message, surface `error`
+
+  - name: Sell Shares (Payout)
+    brief: Sign a sell payload with session private key and call backend to execute.
+    steps:
+      - Retrieve `yellow_session_sk` from localStorage
+      - Build `signedPayload = marketId-optionId-shares`
+      - Sign using private key -> `signature`
+      - POST /api/market/execute-sell with signed payload and session signature
+      - Backend validates session signature, clears shares, and initiates payout via Clearnode
+    success: payout confirmation
+    failure: set `error` and `message` accordingly
+
+state_machines:
+  - name: tradeFlow
+    description: States for `placeBet` and `sellShares` operations
+    states:
+      - idle:
+          on: { PLACE: preparing }
+      - preparing:
+          on: { SIGNED: sending, ERROR: failed }
+      - sending:
+          on: { SENT: awaiting_db, ERROR: failed }
+      - awaiting_db:
+          on: { DB_OK: success, DB_ERR: failed }
+      - success:
+          on: { RESET: idle }
+      - failed:
+          on: { RETRY: preparing, RESET: idle }
+
+mermaid_examples:
+  - name: place_bet_sequence
+    type: sequenceDiagram
+    content: |
+      sequenceDiagram
+        participant UI
+        participant Hook as useYellowTrade
+        participant Yellow
+        participant Backend
+        UI->>Hook: placeBet(amount, marketId, optionId, shares)
+        Hook->>Yellow: createTransferMessage(sessionSigner, params)
+        Yellow-->>Hook: transferMsg (req, sig)
+        Hook->>Yellow: sendMessage(transferMsg)
+        Hook->>Backend: POST /api/market/trade (signedPayload, signature, shares)
+        Backend-->>Hook: { trade }
+        Hook-->>UI: success / error
+
+  - name: trade_state_diagram
+    type: stateDiagram
+    content: |
+      stateDiagram-v2
+        [*] --> idle
+        idle --> preparing : PLACE
+        preparing --> sending : SIGNED
+        sending --> awaiting_db : SENT
+        awaiting_db --> success : DB_OK
+        awaiting_db --> failed : DB_ERR
+        failed --> preparing : RETRY
+        success --> idle : RESET
+
+usage_notes: |
+  - Use the `place_bet_sequence` Mermaid snippet to generate sequence diagrams in tools like Mermaid Live Editor, VS Code Mermaid Preview, or static renderers.
+  - Use `trade_state_diagram` to visualize the trade lifecycle and map UI transitions to state machine events.
+  - The `data_models` and `apis` sections help generate ER diagrams and API flow charts.
+
+generator_tips:
+  - For PlantUML, translate the mermaid snippets or convert state diagram definitions.
+  - For automatic generation of diagrams, feed `project-context.yaml` into your diagram generator script that:
+      - parses `flows` -> creates sequence/flowcharts
+      - parses `state_machines` -> emits state diagrams (Mermaid/PlantUML)
+  - Example: a small script can loop `flows` and output Mermaid flowcharts per flow.
+
+notes:
+  - This file is intentionally concise and focused on front-end flows and interactions.
+  - Extend with backend DB schema or contract ABIs as needed for deeper diagrams.

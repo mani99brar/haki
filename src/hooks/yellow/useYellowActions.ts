@@ -5,7 +5,7 @@ import { Address, formatUnits } from "viem";
 
 export function useYellowActions(userAddress?: Address) {
   const { ws, sendMessage, sessionSigner, status } = useYellow();
-  const [balance, setBalance] = useState<string>("0");
+  const [balance, setBalance] = useState<string | null>(null);
   const [asset, setAsset] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
 

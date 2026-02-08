@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
 
     // --- 2. Setup Server-Side Nitrolite Signer ---
     const payoutAmount = Math.abs(tradeData[0].cost).toString();
+    console.log("PAYOUT AMOUNT", payoutAmount);
     const sessionKey = generatePrivateKey(); // Temporary key for this payout session
     const sessionAccount = privateKeyToAccount(sessionKey);
     const sessionSigner = createECDSAMessageSigner(sessionKey);
@@ -74,9 +75,7 @@ export async function POST(req: NextRequest) {
 
       ws.onmessage = async (event) => {
         const response = JSON.parse(event.data.toString());
-        console.log(response);
         const [, type, payload,] = response.res || [];
-        
         
 
         // Step A: Handle Auth Challenge (Sign with Vault Private Key)
@@ -109,6 +108,7 @@ export async function POST(req: NextRequest) {
 
         // Step B: Once Authenticated, send the actual Transfer
         if (type === "auth_verify" || (response.result && !response.error)) {
+          console.log("PAYING", parseUnits(payoutAmount, 6).toString());
           const transferParams = {
             destination: walletAddress as `0x${string}`,
             allocations: [
@@ -124,19 +124,9 @@ export async function POST(req: NextRequest) {
             sessionSigner,
             transferParams,
           );
-          ws.send(
-            JSON.stringify({
-              jsonrpc: "2.0",
-              method: "nitrolite_sendMessage",
-              params: [transferMsg],
-              id: 1,
-            }),
-          );
-          ws.close();
+          ws.send(transferMsg);
         }
-
-        // Step C: Catch successful send
-        if (response.id === 1) {
+        if (type === "bu") {
           ws.close();
           resolve(true);
         }

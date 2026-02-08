@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useRouter } from 'next/navigation';
-import Navigation from '@/components/Navigation';
-import './market.css';
-import { useParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
+import Navigation from "@/components/Navigation";
+import "./market.css";
 import { useHakiContract } from "@/hooks/useHakiContract";
 import { useYellowTrade } from "@/hooks/yellow/useYellowTrade";
 import { useMarketData } from "@/hooks/useMarketTradePreview";
 import { useNotification } from "@/context/NotificationContext";
 import { useAppKitAccount } from "@reown/appkit/react";
-import { zeroHash } from "viem";
+import { Address, zeroHash } from "viem";
+import { useYellowActions } from "@/hooks/yellow/useYellowActions";
 
 interface MarketOption {
   id: string;
@@ -29,41 +29,41 @@ export default function MarketPage() {
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
+
+  // State
   const [betAmounts, setBetAmounts] = useState<{ [key: string]: string }>({});
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
+  const [winningOptionId, setWinningOptionId] = useState<string>("");
+  const [justification, setJustification] = useState<string>("");
+
+  // Hooks
   const { placeBet, isTrading, sellShares, message, error } = useYellowTrade();
   const currentAmount = parseFloat(betAmounts[selectedOutcome || ""] || "0");
   const state = useMarketData(id, selectedOutcome, currentAmount);
   const { showNotification } = useNotification();
-  const [winningOptionId, setWinningOptionId] = useState<string>("");
-  const [justification, setJustification] = useState<string>("");
-  const { resolveCreatorMarket, resolvePublicMarket } = useHakiContract();
+  const { resolveCreatorMarket, resolvePublicMarket, market, isLoading } =
+    useHakiContract(id);
   const { address } = useAppKitAccount();
+  const { balance, refreshBalance } = useYellowActions(address as Address);
 
+  // --- Notification Logic ---
   useEffect(() => {
-    // RESET both refs when a new trade starts
+    refreshBalance();
     if (isTrading) {
       lastNotifiedMessage.current = "";
       lastNotifiedError.current = "";
       return;
     }
-
-    // Handle Errors (Now Protected)
     if (error && error !== "") {
-      // Only trigger if we haven't shown THIS specific error yet
       if (error !== lastNotifiedError.current) {
         showNotification(error, "error");
-        lastNotifiedError.current = error; // Mark as seen
+        lastNotifiedError.current = error;
       }
     }
-
-    // Handle Success
     if (message && message !== "") {
       if (message !== lastNotifiedMessage.current) {
         showNotification(message, "success");
-        lastNotifiedMessage.current = message; // Mark as seen
-
-        // Refresh data
+        lastNotifiedMessage.current = message;
         setTimeout(() => {
           state.refresh();
         }, 800);
@@ -71,25 +71,24 @@ export default function MarketPage() {
     }
   }, [isTrading, message, error, showNotification, state]);
 
-
+  // --- Handlers ---
   const handleBetAmountChange = (outcomeId: string, value: string) => {
     setBetAmounts({ ...betAmounts, [outcomeId]: value });
     if (selectedOutcome !== outcomeId) {
       setSelectedOutcome(outcomeId);
     }
   };
+
   const handleResolve = async () => {
     if (!winningOptionId) {
       showNotification("Please select a winning outcome", "error");
       return;
     }
-
     try {
-      // Call the contract resolution logic
       await resolveCreatorMarket(
         state?.marketId!,
         winningOptionId,
-        id,
+        market?.label || "",
         justification,
       );
       showNotification("Market resolution submitted!", "success");
@@ -98,9 +97,9 @@ export default function MarketPage() {
       showNotification("Resolution failed", "error");
     }
   };
+
   const handlePublicResolve = async () => {
     try {
-      // Call the contract resolution logic
       await resolvePublicMarket(state?.marketId!, id);
       showNotification("Market resolution submitted!", "success");
     } catch (err) {
@@ -109,33 +108,51 @@ export default function MarketPage() {
     }
   };
 
-  const { market, isLoading } = useHakiContract(id);
+  // --- Derived State ---
 
-  // Check if market has expired
+  // 1. Expiry Check
   const isExpired = useMemo(() => {
     if (!market?.expiry) return false;
     return Date.now() / 1000 > market.expiry;
   }, [market?.expiry]);
 
-  // Determine market status
+  // 2. Pending Result Check (State Root exists but not resolved)
+  const hasResultPending = useMemo(() => {
+    return (
+      market?.stateRoot && market.stateRoot !== zeroHash && !market.resolved
+    );
+  }, [market?.stateRoot, market?.resolved]);
+
+  // 3. Winning Label Helper
+  const winningLabel = market?.winningOption;
+
+  // 4. Status Logic (Strictly following your rules)
   const marketStatus = useMemo(() => {
     if (!market) return { label: "Loading", className: "loading" };
-    if (market.resolved) return { label: "Resolved", className: "resolved" };
-    if (isExpired) return { label: "Resolving", className: "resolving" };
+
+    if (market.resolved) {
+      return { label: "Resolved", className: "resolved" };
+    }
+
+    if (isExpired) {
+      if (hasResultPending) {
+        // Expired + State Root present + Not Resolved = Settling
+        return { label: "Settling", className: "settling" };
+      }
+      // Expired + No State Root = Resolving (Needs input)
+      return { label: "Resolving", className: "resolving" };
+    }
+
     return { label: "Open", className: "open" };
-  }, [market, isExpired]);
+  }, [market, isExpired, hasResultPending]);
 
-
-  // Generate market options from real data
+  // Options Mapping
   const marketOptions: MarketOption[] = useMemo(() => {
     if (!state.options || state.options.length === 0) return [];
-
     return state.options.map((option, index) => {
-      // 1. Find the user's position for this specific option UUID
       const userPos = state.userPositions?.find(
         (p) => p.option_id === option.option_id,
       );
-
       return {
         id: index.toString(),
         option_id: option.option_id,
@@ -143,40 +160,37 @@ export default function MarketPage() {
         label: option.label,
         probability: option.probability,
         current_price: option.marginal_price || 0,
-        // 2. Map the real shares held by the user (default to 0)
         shares: option.shares,
         userShares: userPos ? userPos.shares : 0,
       };
     });
   }, [state.options, state.userPositions]);
-  console.log("mareketOPtions", marketOptions);
 
-
-  // Calculate time remaining
+  // Time Remaining
   const timeRemaining = useMemo(() => {
     if (!market?.expiry) return "No expiry set";
     const now = Date.now() / 1000;
     const diff = market.expiry - now;
-
     if (diff <= 0) return "Expired";
-
     const days = Math.floor(diff / 86400);
     const hours = Math.floor((diff % 86400) / 3600);
-
     if (days > 0) return `${days}d ${hours}h`;
     return `${hours}h`;
   }, [market?.expiry]);
 
-  // Trade functions
+  // Trading Handlers
   const handleBuy = (optionId: string, amount: string) => {
-    console.log("🎯 BUY", {
-      marketId: id,
-      optionId,
-      amount,
-      option: marketOptions.find((o) => o.id === optionId)?.name,
-    });
+    console.log("🎯 BUY", { marketId: id, optionId, amount });
+
     if (state.preview.cost == null || state.marketId == null) {
-      showNotification("Invalid market state", "error");
+      showNotification(
+        "Invalid market state or insufficient liquidity calc",
+        "error",
+      );
+      return;
+    }
+    if (balance != null && Number(balance) < state.preview.cost) {
+      showNotification("Insufficient balance to place bet", "error");
       return;
     }
     placeBet(
@@ -188,17 +202,10 @@ export default function MarketPage() {
   };
 
   const handleSell = (optionId: string, shares: number) => {
-    console.log("💰 SELL", {
-      marketId: id,
-      optionId,
-      shares,
-      option: marketOptions.find((o) => o.id === optionId)?.name,
-    });
     if (state.marketId == null) return;
-    sellShares("0", state?.marketId, optionId, shares);
+    sellShares("0", state.marketId, optionId, shares);
   };
 
-  // Truncate address for display
   const truncateAddress = (address: string) => {
     if (!address) return "Unknown";
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -226,10 +233,6 @@ export default function MarketPage() {
           <div className="error-state">
             <div className="error-icon">⚠️</div>
             <h2>Market Not Found</h2>
-            <p>
-              The market you&apos;re looking for doesn&apos;t exist or
-              hasn&apos;t been created yet.
-            </p>
             <button onClick={() => router.push("/")} className="back-btn">
               ← Back to Home
             </button>
@@ -244,7 +247,7 @@ export default function MarketPage() {
       <Navigation />
 
       <div className="market-container">
-        {/* Market Header */}
+        {/* Header */}
         <div className="market-header">
           <div className="market-header-content">
             <div className="market-breadcrumb">
@@ -272,7 +275,6 @@ export default function MarketPage() {
               <div
                 style={{ display: "flex", gap: "12px", alignItems: "center" }}
               >
-                {/* NEW: Resolution Type Badge */}
                 <span
                   className={`market-tag res-type ${market?.resolutionType?.toLowerCase()}`}
                 >
@@ -325,7 +327,6 @@ export default function MarketPage() {
                   <div className="author-stats">Market Creator</div>
                 </div>
               </div>
-
               <div className="market-tags">
                 <span className="market-tag sports">📊 Prediction Market</span>
                 {market.expiry > 0 && (
@@ -337,12 +338,10 @@ export default function MarketPage() {
             </div>
           </div>
         </div>
-        {/* Resolution Card - Only visible when resolving is needed */}
 
-        {/* Main Grid */}
         <div className="market-grid">
-          {/* Left Column - Betting Interface */}
           <div className="market-main">
+            {/* 1. STATE: FINAL RESOLVED */}
             {market.resolved && (
               <div className="resolution-result-card">
                 <div className="res-icon-wrapper">🏆</div>
@@ -351,7 +350,7 @@ export default function MarketPage() {
                   <p>
                     Winning Outcome:{" "}
                     <span className="winner-highlight">
-                      {market.winningOption || "Fetching winner..."}
+                      {winningLabel || "Unknown"}
                     </span>
                   </p>
                   <div className="resolution-hash">
@@ -361,17 +360,34 @@ export default function MarketPage() {
                 </div>
               </div>
             )}
-            {!market.resolved &&
-              isExpired &&
-              market.creator === address &&
-              market.stateRoot != zeroHash && (
+
+            {/* 2. STATE: SETTLING (Result Submitted, Challenge Period) */}
+            {hasResultPending && (
+              <div className="resolution-result-card pending">
+                <div className="res-icon-wrapper">⏳</div>
+                <div className="res-content">
+                  <h3>RESOLUTION PROPOSED</h3>
+                  <p>
+                    Pending Outcome:{" "}
+                    <span className="winner-highlight pending">
+                      {winningLabel || "Hidden"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* 3. STATE: RESOLVING (Creator Needs to Input) */}
+            {/* Logic: Expired AND No Pending Result AND Creator is User */}
+            {isExpired &&
+              !market.resolved &&
+              !hasResultPending &&
+              market.creator === address && (
                 <div className="sidebar-card resolution-card">
                   <h3 className="sidebar-card-title">Resolve Market</h3>
                   <p className="form-hint" style={{ marginBottom: "16px" }}>
-                    Select the final outcome and provide a justification for the
-                    chain.
+                    Select the final outcome and provide a justification.
                   </p>
-
                   <div className="form-group">
                     <label className="form-label">Winning Option</label>
                     <select
@@ -388,33 +404,32 @@ export default function MarketPage() {
                       ))}
                     </select>
                   </div>
-
                   <div className="form-group" style={{ marginTop: "16px" }}>
                     <label className="form-label">Justification</label>
                     <textarea
                       className="form-textarea"
-                      placeholder="Source of truth URL or reasoning..."
+                      placeholder="Reasoning..."
                       rows={3}
                       value={justification}
                       onChange={(e) => setJustification(e.target.value)}
                     />
                   </div>
-
                   <button
                     className="submit-btn"
                     style={{ marginTop: "16px", width: "100%" }}
                     onClick={handleResolve}
-                    disabled={
-                      isLoading /* Disable until resolution logic is implemented */
-                    }
+                    disabled={isLoading}
                   >
                     {isLoading ? "Resolving..." : "Confirm Resolution →"}
                   </button>
                 </div>
               )}
-            {!market.resolved &&
-              isExpired &&
-              market.stateRoot != zeroHash &&
+
+            {/* 4. STATE: RESOLVING (Oracle Trigger) */}
+            {/* Logic: Expired AND No Pending Result AND Not Creator Type */}
+            {isExpired &&
+              !market.resolved &&
+              !hasResultPending &&
               market.resolutionType?.toLowerCase() !== "creator" && (
                 <div className="resolution-action-card">
                   <div className="res-icon-wrapper">⚖️</div>
@@ -429,19 +444,16 @@ export default function MarketPage() {
                     className={"resolve-oracle-btn"}
                     onClick={handlePublicResolve}
                   >
-                    TRIGGER RESOLUTION
-                    <span className="btn-arrow">→</span>
+                    TRIGGER RESOLUTION <span className="btn-arrow">→</span>
                   </button>
                 </div>
               )}
-            {/* Market Info Card */}
+
             <div className="info-card">
               <h3 className="info-card-title">Market Details</h3>
               <p className="market-description text-xl">
-                {market.description ||
-                  "No description provided for this market."}
+                {market.description || "No description provided."}
               </p>
-
               <div className="market-stats-row">
                 <div className="market-stat">
                   <div className="market-stat-label">Total Liquidity</div>
@@ -462,7 +474,6 @@ export default function MarketPage() {
               </div>
             </div>
 
-            {/* Outcomes Betting Card */}
             <div className="outcomes-card">
               <div
                 style={{
@@ -490,7 +501,7 @@ export default function MarketPage() {
                   >
                     <span style={{ animation: "spin 1s linear infinite" }}>
                       ⟳
-                    </span>
+                    </span>{" "}
                     Loading data...
                   </div>
                 )}
@@ -511,29 +522,31 @@ export default function MarketPage() {
                     <div style={{ fontSize: "48px", marginBottom: "16px" }}>
                       📊
                     </div>
-                    <div
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: 600,
-                        marginBottom: "8px",
-                      }}
-                    >
+                    <div style={{ fontSize: "16px", fontWeight: 600 }}>
                       No options available
-                    </div>
-                    <div style={{ fontSize: "14px" }}>
-                      Market data will appear here once loaded
                     </div>
                   </div>
                 ) : null}
+
                 {marketOptions.map((option) => {
                   const betAmount = betAmounts[option.label]
                     ? parseFloat(betAmounts[option.label])
                     : 0;
 
+                  // Visual State Logic
+                  const isWinner = winningLabel === option.label;
+                  // If Resolved OR Settling: Losers are dimmed
+                  const isLoser =
+                    (market.resolved || hasResultPending) && !isWinner;
+
                   return (
                     <div
                       key={option.id}
-                      className={`outcome-bet-card ${selectedOutcome === option.label ? "selected" : ""}`}
+                      className={`outcome-bet-card 
+                        ${selectedOutcome === option.label ? "selected" : ""}
+                        ${(market.resolved || hasResultPending) && isWinner ? "winner-card" : ""}
+                        ${isLoser ? "loser-card" : ""}
+                      `}
                       onClick={() =>
                         !isExpired &&
                         !market.resolved &&
@@ -542,7 +555,13 @@ export default function MarketPage() {
                     >
                       <div className="outcome-header">
                         <div className="outcome-info">
-                          <span className="outcome-name">{option.name}</span>
+                          <span className="outcome-name">
+                            {option.name}
+                            {(market.resolved || hasResultPending) &&
+                              isWinner && (
+                                <span className="winner-badge">WINNER</span>
+                              )}
+                          </span>
                         </div>
                         <div className="outcome-odds-badge">
                           {(Number(option.probability) * 100).toFixed(2)}%
@@ -556,12 +575,6 @@ export default function MarketPage() {
                             ${option.current_price.toFixed(4)}
                           </span>
                         </div>
-                        {/* <div className="outcome-stat-item">
-                          <span className="outcome-stat-label">Liquidity</span>
-                          <span className="outcome-stat-value">
-                            ${option.liquidity.toFixed(2)}
-                          </span>
-                        </div> */}
                         <div className="outcome-stat-item">
                           <span className="outcome-stat-label">
                             Total Shares
@@ -580,6 +593,7 @@ export default function MarketPage() {
                         </div>
                       </div>
 
+                      {/* Betting Inputs - Only when Open */}
                       {!isExpired && !market.resolved && (
                         <>
                           <div className="bet-input-section">
@@ -605,7 +619,6 @@ export default function MarketPage() {
                                 />
                               </div>
                             </div>
-
                             <div className="bet-quick-amounts">
                               {[10, 25, 50, 100].map((amount) => (
                                 <button
@@ -634,8 +647,6 @@ export default function MarketPage() {
                                     alignItems: "center",
                                     justifyContent: "center",
                                     gap: "8px",
-                                    padding: "8px",
-                                    color: "var(--text-secondary)",
                                     fontSize: "14px",
                                     fontWeight: 600,
                                   }}
@@ -646,7 +657,7 @@ export default function MarketPage() {
                                     }}
                                   >
                                     ⟳
-                                  </span>
+                                  </span>{" "}
                                   Calculating...
                                 </div>
                               ) : (
@@ -670,6 +681,16 @@ export default function MarketPage() {
                                             ${state.preview.avgPrice.toFixed(4)}
                                           </span>
                                         </div>
+                                        <div className="payout-row">
+                                          <span className="payout-label">
+                                            Your account balance
+                                          </span>
+                                          <span className="payout-value">
+                                            {balance !== null
+                                              ? `${parseFloat(balance).toFixed(3)}`
+                                              : "Loading..."}
+                                          </span>
+                                        </div>
                                       </>
                                     )}
                                 </>
@@ -680,7 +701,7 @@ export default function MarketPage() {
                           <div className="trade-buttons">
                             <button
                               className="place-bet-btn buy"
-                              disabled={betAmount <= 0}
+                              disabled={betAmount <= 0 || isTrading}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleBuy(
@@ -689,13 +710,13 @@ export default function MarketPage() {
                                 );
                               }}
                             >
-                              <span className="place-bet-icon">🎯</span>
-                              Buy Shares
+                              <span className="place-bet-icon">🎯</span>{" "}
+                              {isTrading ? "Trading..." : "Buy Shares"}
                             </button>
-
                             {option.userShares > 0 && (
                               <button
                                 className="place-bet-btn sell"
+                                disabled={isTrading}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleSell(
@@ -704,22 +725,40 @@ export default function MarketPage() {
                                   );
                                 }}
                               >
-                                <span className="place-bet-icon">💰</span>
-                                Sell {option.userShares} Shares
+                                <span className="place-bet-icon">💰</span>{" "}
+                                {isTrading
+                                  ? "Trading..."
+                                  : `Sell ${option.userShares} Shares`}
                               </button>
                             )}
                           </div>
                         </>
                       )}
 
+                      {/* Footer Status */}
                       {(isExpired || market.resolved) && (
-                        <div className="market-closed-notice">
-                          <span className="closed-icon">🔒</span>
+                        <div
+                          className={`market-closed-notice ${isWinner ? "winner" : ""}`}
+                        >
+                          <span className="closed-icon">
+                            {market.resolved
+                              ? isWinner
+                                ? "🎉"
+                                : "❌"
+                              : hasResultPending
+                                ? "⚖️"
+                                : "🔒"}
+                          </span>
+                          {/* STATUS TEXT LOGIC */}
                           {market.resolved
-                            ? "Market Resolved"
-                            : market.stateRoot == zeroHash
-                              ? "Market Expired - Awaiting Resolution"
-                              : "Market Expired - Answer submitted, awaiting settlement"}
+                            ? isWinner
+                              ? "Winning Outcome"
+                              : "Outcome Lost"
+                            : hasResultPending
+                              ? isWinner
+                                ? "Proposed Winner (Settling)"
+                                : "Proposed Loser"
+                              : "Market Expired - Awaiting Resolution"}
                         </div>
                       )}
                     </div>
@@ -729,9 +768,7 @@ export default function MarketPage() {
             </div>
           </div>
 
-          {/* Right Column - Stats & Activity */}
           <div className="market-sidebar">
-            {/* Probability Distribution */}
             <div className="sidebar-card">
               <h3 className="sidebar-card-title">Probability Distribution</h3>
               <div className="odds-chart">
@@ -756,8 +793,6 @@ export default function MarketPage() {
                 ))}
               </div>
             </div>
-
-            {/* Market Info */}
             <div className="sidebar-card">
               <h3 className="sidebar-card-title">Market Information</h3>
               <div className="market-info-list">

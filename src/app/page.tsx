@@ -34,8 +34,8 @@ export default function Home() {
               <span className="gradient-text"> Future</span>
             </h1>
             <p className="hero-subtitle">
-              Haki is a power that lies within all the world's creatures. To
-              'not doubt'. That is great strength!
+              "Haki is a power that lies within all the world's creatures. To
+              'not doubt'. That is great strength!" — Silvers Rayleigh
             </p>
             <div className="hero-actions">
               <button
@@ -54,8 +54,8 @@ export default function Home() {
             {/* Stats */}
             <div className="hero-stats">
               <div className="stat-item">
-                <div className="stat-value">{marketLabels.length}</div>
-                <div className="stat-label">Active Markets</div>
+                <div className="stat-value">ENS Ownable</div>
+                <div className="stat-label">Markets</div>
               </div>
               <div className="stat-divider"></div>
               <div className="stat-item">
