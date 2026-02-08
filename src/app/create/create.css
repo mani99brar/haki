@@ -22,6 +22,34 @@
   }
 }
 
+.strategy-opt {
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  border-radius: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.strategy-opt.active {
+  border-color: var(--accent-teal);
+  background: rgba(0, 212, 170, 0.05);
+  box-shadow: 0 0 0 1px var(--accent-teal);
+}
+
+.strategy-opt strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.strategy-opt span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 /* Form Panel */
 .form-panel {
   padding: 56px 72px;

@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
             );
           }
         } catch (err) {
+          console.error("❌ Failed to parse Yellow response:", err);
           cleanup();
           resolve(
             NextResponse.json({ error: "Malformed response" }, { status: 502 }),
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
       };
 
       ws.onerror = (err) => {
+        console.error("❌ WebSocket error:", err);
         cleanup();
         resolve(
           NextResponse.json(

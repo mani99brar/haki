@@ -1,8 +1,7 @@
 import { usePublicClient } from "wagmi";
 import { useState, useEffect, useCallback } from "react";
 import { parseAbiItem } from "viem";
-
-const HAKI_ADDRESS = "0x8f01899fa646ceb22533f676ec798812b01c81c4";
+import { HAKI_ADDRESS } from "@/utils/consts";
 const DEPLOY_BLOCK = BigInt(10204130);
 const BLOCK_STEP = BigInt(10000); // Adjust based on your RPC's limits
 
@@ -11,7 +10,9 @@ export function useAllMarkets() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentFromBlock, setCurrentFromBlock] = useState(DEPLOY_BLOCK);
   const [latestBlock, setLatestBlock] = useState<bigint | null>(null);
-
+  const [markets, setMarkets] = useState<
+    { label: string; creator: string; node: string }[]
+  >([]);
   const publicClient = usePublicClient();
 
   // 1. Get the current latest block height on mount
@@ -42,6 +43,18 @@ export function useAllMarkets() {
           ),
           fromBlock: from,
           toBlock: toBlock,
+        });
+        const newMarkets = logs.map((log) => ({
+          label: log.args.label as string,
+          creator: log.args.creator as string,
+          node: log.args.node as string,
+        }));
+        setMarkets((prev) => {
+          const combined = [...prev, ...newMarkets];
+          // Filter unique nodes to avoid duplicates on refetch
+          return combined.filter(
+            (v, i, a) => a.findIndex((t) => t.node === v.node) === i,
+          );
         });
 
         const labels = logs.map((log) => log.args.label as string);
@@ -77,6 +90,7 @@ export function useAllMarkets() {
   };
 
   return {
+    markets,
     marketLabels,
     isLoading,
     nextPage,

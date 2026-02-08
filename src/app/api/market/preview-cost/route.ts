@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   const { marketId, optionId, shares } = await req.json();
+  console.log(marketId, optionId, shares);
 
   if (!marketId || !optionId || typeof shares !== "number") {
     return NextResponse.json(

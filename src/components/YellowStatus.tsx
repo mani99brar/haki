@@ -5,7 +5,7 @@ import { useYellow } from "@/context/YellowProvider";
 import "./YellowStatus.css";
 
 export default function YellowStatus() {
-  const { status, connect, activeChannelId, loading } = useYellow();
+  const { status, requestSignature, activeChannelId, loading } = useYellow();
 
   const statusMap = {
     init: { label: "INITIALIZING", class: "status-init" },
@@ -20,6 +20,13 @@ export default function YellowStatus() {
   const current = statusMap[status] || statusMap.disconnected;
   const displayLabel = loading ? "PROCESSING..." : current.label;
   const displayClass = loading ? "status-wait" : current.class;
+
+  const handleSignNow = async () => {
+    console.log(
+      "Attempting to connect or request signature for Yellow session...",
+    );
+    await requestSignature();
+  };
 
   return (
     <div className={`yellow-status-pill ${displayClass}`}>
@@ -38,7 +45,7 @@ export default function YellowStatus() {
       {/* Button is hidden during loading to prevent spamming the connection */}
       {!loading &&
         (status === "disconnected" || status === "waiting-signature") && (
-          <button className="reconnect-btn-brutal" onClick={connect}>
+          <button className="reconnect-btn-brutal" onClick={handleSignNow}>
             {status === "waiting-signature" ? "SIGN NOW" : "CONNECT L3"}
           </button>
         )}

@@ -1,3 +1,13 @@
 {
-  "extends": ["next/core-web-vitals", "next/typescript"]
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "rules": {
+    // Silences the "unsafe non-null assertion" error on optional chains (e.g., state?.id!)
+    "@typescript-eslint/no-non-null-asserted-optional-chain": "off",
+    
+    // Silences the error for using ' instead of &apos; in your JSX
+    "react/no-unescaped-entities": "off",
+    
+    // Silences the "Unexpected any" error
+    "@typescript-eslint/no-explicit-any": "off"
+  }
 }

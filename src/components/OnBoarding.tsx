@@ -3,47 +3,41 @@
 import React, { useState, useEffect, useMemo } from "react";
 import TransactionModal, { TransactionStep } from "./TransactionModal";
 import { useYellow } from "@/context/YellowProvider";
-import { useYellowChannel } from "@/hooks/yellow/useYellowChannel";
 import { requestFaucetTokens } from "@/utils/yellowFaucet";
 import { useAccount } from "wagmi";
 
 export default function OnboardingManager() {
   const { status, activeChannelId, requestSignature, jwt, connect } =
     useYellow();
-  const { createChannel } = useYellowChannel();
+
   const { address } = useAccount();
 
   const [isOpen, setIsOpen] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [isFaucetLoading, setIsFaucetLoading] = useState(false);
 
-  // 1. Trigger connection when modal opens
+  // 1. Initial Connection
   useEffect(() => {
     if (isOpen && status === "disconnected") {
       connect();
     }
   }, [isOpen, status, connect]);
 
-  // 2. Open modal if no channel exists
+  // 2. Initial Modal Trigger
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem("haki_onboarded");
-    if (!activeChannelId && !hasSeenOnboarding) {
+    // If no active channel and hasn't seen onboarding, show it
+    if (!activeChannelId && !hasSeenOnboarding && !isOpen) {
       setIsOpen(true);
     }
-  }, [activeChannelId]);
+  }, [activeChannelId, isOpen]);
 
-  // --- AUTOMATION LOGIC ---
+  // 3. Automation: Auto-advance from Auth to Faucet
   useEffect(() => {
-    // Transition from Auth -> Faucet
-    if (status === "connected" && currentStepIndex === 0) {
+    if (jwt && currentStepIndex === 0) {
       setCurrentStepIndex(1);
     }
-
-    // Transition from Channel -> Finalize
-    // We check currentStepIndex < 3 to avoid infinite loop
-    if (activeChannelId && currentStepIndex < 3) {
-      setCurrentStepIndex(3);
-    }
-  }, [status, activeChannelId, currentStepIndex]);
+  }, [jwt, currentStepIndex]);
 
   const steps: TransactionStep[] = useMemo(
     () => [
@@ -52,26 +46,23 @@ export default function OnboardingManager() {
         title: "Authorize Session",
         description: jwt
           ? "Session Key validated."
-          : "Sign to authorize your session.",
-        // Success if we are past this step OR connected
-        status:
-          status === "connected" || status === "active" || currentStepIndex > 0
-            ? "success"
-            : status === "authenticating"
-              ? "processing"
-              : "active",
+          : "Sign to authorize your L3 session.",
+        status: jwt
+          ? "success"
+          : status === "waiting-signature"
+            ? "active"
+            : "pending",
         action: {
-          label: jwt ? "RESUME SESSION" : "AUTHORIZE",
-          onClick: async () => {
-            await requestSignature();
-          },
+          label: jwt ? "AUTHORIZED" : "AUTHORIZE",
+          onClick: async () => await requestSignature(),
         },
       },
       {
         id: "fuel-up",
         title: "Fuel Account",
-        description: "Requesting testnet USDC from the Yellow Faucet.",
-        // Active only if we are exactly on this step
+        description: isFaucetLoading
+          ? "Requesting tokens..."
+          : "Get testnet USDC to start trading.",
         status:
           currentStepIndex === 1
             ? "active"
@@ -79,39 +70,22 @@ export default function OnboardingManager() {
               ? "success"
               : "pending",
         action: {
-          label: "GET TOKENS",
+          label: isFaucetLoading ? "WAITING..." : "GET TOKENS",
           onClick: async () => {
             if (!address) return;
+            setIsFaucetLoading(true);
             try {
               await requestFaucetTokens(address);
+              // Wait a beat for the faucet to actually process
+              setTimeout(() => {
+                setIsFaucetLoading(false);
+                setCurrentStepIndex(2); // Move to final step
+              }, 2000);
             } catch (e) {
-              console.error("Faucet skip");
-            } finally {
+              console.error("Faucet error", e);
+              setIsFaucetLoading(false);
+              // We move forward anyway so the user isn't stuck if they already have tokens
               setCurrentStepIndex(2);
-            }
-          },
-        },
-      },
-      {
-        id: "create-channel",
-        title: "Create Channel",
-        description: "Establishing your L3 clearing channel.",
-        // Success if we have an ID, otherwise active if index is 2
-        status:
-          activeChannelId || currentStepIndex > 2
-            ? "success"
-            : currentStepIndex === 2
-              ? "active"
-              : "pending",
-        action: {
-          label: "OPEN CHANNEL",
-          onClick: async () => {
-            try {
-              await createChannel();
-            } catch (e) {
-              console.error("Channel skip");
-            } finally {
-              setCurrentStepIndex(3);
             }
           },
         },
@@ -119,8 +93,8 @@ export default function OnboardingManager() {
       {
         id: "enter-haki",
         title: "Trade Ready",
-        description: "L3 Session active. Welcome to the Haki clearing house.",
-        status: currentStepIndex === 3 ? "active" : "pending",
+        description: "Your session is ready for the prediction markets.",
+        status: currentStepIndex === 2 ? "active" : "pending",
         action: {
           label: "ENTER HAKI",
           onClick: () => {
@@ -130,22 +104,14 @@ export default function OnboardingManager() {
         },
       },
     ],
-    [
-      jwt,
-      status,
-      activeChannelId,
-      address,
-      currentStepIndex,
-      requestSignature,
-      createChannel,
-    ],
+    [jwt, status, address, currentStepIndex, requestSignature, isFaucetLoading],
   );
 
   return (
     <TransactionModal
       isOpen={isOpen}
       onClose={() => setIsOpen(false)}
-      title="HAKI ONBOARDING"
+      title="HAKI CLEARING SETUP"
       steps={steps}
       currentStepIndex={currentStepIndex}
       disableBackdropClose={true}

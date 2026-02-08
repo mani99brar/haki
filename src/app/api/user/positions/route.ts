@@ -10,14 +10,12 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+  console.log(wallet, marketId);
 
-  const { data, error } = await supabase.rpc(
-    "get_user_positions",
-    {
-      p_wallet: wallet,
-      p_market: marketId,
-    },
-  );
+  const { data, error } = await supabase.rpc("get_user_positions", {
+    p_wallet: wallet,
+    p_market: marketId,
+  });
 
   if (error) {
     return NextResponse.json(

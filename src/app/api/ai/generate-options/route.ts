@@ -21,6 +21,7 @@ async function generateWithFallback(prompt: string): Promise<string> {
     return response.response.text();
   } catch (error) {
     // Fallback to flash if pro not available
+    console.log(error);
     const model = client.getGenerativeModel({ model: FALLBACK_MODEL });
     const response = await model.generateContent(prompt);
     return response.response.text();

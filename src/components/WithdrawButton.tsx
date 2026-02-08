@@ -1,10 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import TransactionModal, {
-  TransactionStep,
-  StepStatus,
-} from "./TransactionModal";
+import TransactionModal, { TransactionStep } from "./TransactionModal";
 import { useYellowChannel } from "@/hooks/yellow/useYellowChannel";
 import { Address } from "viem";
 import { useAppKitAccount } from "@reown/appkit/react";
@@ -58,15 +55,15 @@ export function WithdrawButton({ marketTitle }: WithdrawButtonProps) {
         action: {
           label: "CLAIM WINNINGS",
           onClick: async () => {
-              // Claim logic here
-              const tx = await settleOnChain(BigInt(10000));
-              console.log(tx);
+            // Claim logic here
+            const tx = await settleOnChain(BigInt(10000));
+            console.log(tx);
             setCurrentStepIndex(3);
           },
         },
       },
     ],
-    [activeChannelId, currentStepIndex, address, closeChannel],
+    [activeChannelId, currentStepIndex, address, closeChannel, settleOnChain],
   ); // Re-calculate when these change
 
   const handleWithdraw = (e: React.MouseEvent) => {

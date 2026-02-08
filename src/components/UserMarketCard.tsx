@@ -1,10 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo } from "react";
 import { useHakiContract } from '@/hooks/useHakiContract';
-import { Address } from 'viem';
-import { WithdrawButton } from './WithdrawButton';
+import { Address } from "viem";
 import './UserMarketCard.css';
 
 interface UserMarketCardProps {
@@ -13,16 +11,17 @@ interface UserMarketCardProps {
   isCreator: boolean;
 }
 
-export default function UserMarketCard({ marketLabel, userAddress, isCreator }: UserMarketCardProps) {
-  const router = useRouter();
+export default function UserMarketCard({
+  marketLabel,
+  userAddress,
+  isCreator,
+}: UserMarketCardProps) {
+  console.log("Rendering UserMarketCard", {
+    marketLabel,
+    userAddress,
+    isCreator,
+  });
   const { market, isLoading } = useHakiContract(marketLabel);
-  const [isWithdrawing, setIsWithdrawing] = useState(false);
-
-  // Mock user balance - in production, fetch from Yellow Network or contract
-  const userBalance = useMemo(() => {
-    // Random balance between 0-1000 for demo
-    return Math.floor(Math.random() * 1000);
-  }, [marketLabel, userAddress]);
 
   // Check if market has expired
   const isExpired = useMemo(() => {
@@ -32,10 +31,10 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
 
   // Determine market status
   const marketStatus = useMemo(() => {
-    if (!market) return { label: 'LOADING', className: 'loading' };
-    if (market.resolved) return { label: 'RESOLVED', className: 'resolved' };
-    if (isExpired) return { label: 'RESOLVING', className: 'resolving' };
-    return { label: 'ACTIVE', className: 'active' };
+    if (!market) return { label: "LOADING", className: "loading" };
+    if (market.resolved) return { label: "RESOLVED", className: "resolved" };
+    if (isExpired) return { label: "RESOLVING", className: "resolving" };
+    return { label: "ACTIVE", className: "active" };
   }, [market, isExpired]);
 
   // Calculate time remaining
@@ -44,7 +43,7 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
     const now = Date.now() / 1000;
     const diff = market.expiry - now;
 
-    if (diff <= 0) return 'EXPIRED';
+    if (diff <= 0) return "EXPIRED";
 
     const days = Math.floor(diff / 86400);
     const hours = Math.floor((diff % 86400) / 3600);
@@ -53,20 +52,20 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
     return `${hours}H`;
   }, [market?.expiry]);
 
-  const handleWithdraw = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsWithdrawing(true);
+  // const handleWithdraw = (e: React.MouseEvent) => {
+  //   e.stopPropagation();
+  //   setIsWithdrawing(true);
 
-    // Mock withdrawal - replace with actual Yellow Network withdrawal
-    setTimeout(() => {
-      console.log('💰 WITHDRAW', {
-        market: marketLabel,
-        amount: userBalance,
-        user: userAddress,
-      });
-      setIsWithdrawing(false);
-    }, 1500);
-  };
+  //   // Mock withdrawal - replace with actual Yellow Network withdrawal
+  //   setTimeout(() => {
+  //     console.log("💰 WITHDRAW", {
+  //       market: marketLabel,
+  //       amount: userBalance,
+  //       user: userAddress,
+  //     });
+  //     setIsWithdrawing(false);
+  //   }, 1500);
+  // };
 
   if (isLoading) {
     return (
@@ -84,8 +83,6 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
     return null;
   }
 
-  const canWithdraw = userBalance > 0 && (market.resolved || isExpired);
-
   return (
     <article
       className={`user-market-card-brutal ${isCreator ? "creator" : "participant"}`}
@@ -96,11 +93,18 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
       </div>
 
       {/* Market Label */}
-      <div className="market-label-brutal">
-        <span className="label-hash">#</span>
-        {marketLabel}
-        <span className="label-domain">.haki.eth</span>
-      </div>
+      <a
+        href={`https://sepolia.app.ens.domains/${marketLabel}.haki-pm.eth`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="market-label-link"
+      >
+        <div className="market-label-brutal">
+          <span className="label-hash">#</span>
+          {marketLabel}
+          <span className="label-domain">.haki-pm.eth</span>
+        </div>
+      </a>
 
       {/* Market Description */}
       <div className="market-description-brutal">
@@ -123,34 +127,6 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
           <div className="stat-box-brutal">
             <div className="stat-box-label">TIME LEFT</div>
             <div className="stat-box-value">{timeRemaining}</div>
-          </div>
-        )}
-      </div>
-
-      {/* Balance & Withdraw Section */}
-      {/* Balance & Withdraw Section */}
-      <div className="balance-section-brutal">
-        <div className="balance-display-brutal">
-          <div className="balance-label-brutal">YOUR BALANCE</div>
-          <div className="balance-value-brutal">
-            <span className="balance-currency">$</span>
-            <span className="balance-amount">{userBalance.toFixed(2)}</span>
-          </div>
-        </div>
-
-        {canWithdraw && (
-          /* WRAP THE BUTTON HERE */
-          <div onClick={(e) => e.stopPropagation()}>
-            <WithdrawButton
-              marketTitle={marketLabel}
-            />
-          </div>
-        )}
-
-        {!canWithdraw && userBalance > 0 && (
-          <div className="withdraw-locked-brutal">
-            <span className="lock-icon">🔒</span>
-            LOCKED UNTIL RESOLVED
           </div>
         )}
       </div>

@@ -10,8 +10,9 @@ export async function POST(req: NextRequest) {
       signedPayload,
       signature,
       wallet,
+      channelId,
     } = await req.json();
-
+    console.log(marketId, optionId, shares, signedPayload, signature, wallet);
     // --- Basic validation ---
     if (
       !marketId ||
@@ -41,17 +42,15 @@ export async function POST(req: NextRequest) {
      */
 
     // --- Execute trade atomically ---
-    const { data, error } = await supabase.rpc(
-      "execute_trade",
-      {
-        p_wallet: wallet,
-        p_market: marketId,
-        p_option: optionId,
-        p_shares_delta: shares,
-        p_signed_payload: signedPayload,
-        p_signature: signature,
-      },
-    );
+    const { data, error } = await supabase.rpc("execute_trade", {
+      p_wallet: wallet,
+      p_market: marketId,
+      p_option: optionId,
+      p_shares_delta: shares,
+      p_signed_payload: signedPayload,
+      p_signature: signature,
+      p_channel_id: channelId,
+    });
 
     if (error) {
       return NextResponse.json(
@@ -69,6 +68,7 @@ export async function POST(req: NextRequest) {
       trade: data?.[0],
     });
   } catch (err) {
+    console.error("❌ API CRASH:", err);
     return NextResponse.json(
       { error: "Invalid request body" },
       { status: 400 },

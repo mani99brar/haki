@@ -47,7 +47,6 @@ export default function TransactionModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [mounted, setMounted] = useState(false);
   const currentStep = steps[currentStepIndex];
-  const isLastStep = currentStepIndex === steps.length - 1;
   const allStepsComplete = steps.every((step) => step.status === "success");
 
   // Auto-progress logic
