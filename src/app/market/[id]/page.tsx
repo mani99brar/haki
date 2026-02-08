@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, use } from "react";
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import './market.css';
@@ -9,6 +9,8 @@ import { useHakiContract } from "@/hooks/useHakiContract";
 import { useYellowTrade } from "@/hooks/yellow/useYellowTrade";
 import { useMarketData } from "@/hooks/useMarketTradePreview";
 import { useNotification } from "@/context/NotificationContext";
+import { useAppKitAccount } from "@reown/appkit/react";
+import { zeroHash } from "viem";
 
 interface MarketOption {
   id: string;
@@ -35,7 +37,8 @@ export default function MarketPage() {
   const { showNotification } = useNotification();
   const [winningOptionId, setWinningOptionId] = useState<string>("");
   const [justification, setJustification] = useState<string>("");
-  const { resolveCreatorMarket } = useHakiContract();
+  const { resolveCreatorMarket, resolvePublicMarket } = useHakiContract();
+  const { address } = useAppKitAccount();
 
   useEffect(() => {
     // RESET both refs when a new trade starts
@@ -89,6 +92,16 @@ export default function MarketPage() {
         id,
         justification,
       );
+      showNotification("Market resolution submitted!", "success");
+    } catch (err) {
+      console.error("❌ Resolution error:", err);
+      showNotification("Resolution failed", "error");
+    }
+  };
+  const handlePublicResolve = async () => {
+    try {
+      // Call the contract resolution logic
+      await resolvePublicMarket(state?.marketId!, id);
       showNotification("Market resolution submitted!", "success");
     } catch (err) {
       console.error("❌ Resolution error:", err);
@@ -162,7 +175,16 @@ export default function MarketPage() {
       amount,
       option: marketOptions.find((o) => o.id === optionId)?.name,
     });
-    placeBet(amount, state.marketId!, optionId, currentAmount);
+    if (state.preview.cost == null || state.marketId == null) {
+      showNotification("Invalid market state", "error");
+      return;
+    }
+    placeBet(
+      state.preview.cost.toString(),
+      state.marketId!,
+      optionId,
+      currentAmount,
+    );
   };
 
   const handleSell = (optionId: string, shares: number) => {
@@ -321,54 +343,97 @@ export default function MarketPage() {
         <div className="market-grid">
           {/* Left Column - Betting Interface */}
           <div className="market-main">
-            {!market.resolved && isExpired && (
-              <div className="sidebar-card resolution-card">
-                <h3 className="sidebar-card-title">Resolve Market</h3>
-                <p className="form-hint" style={{ marginBottom: "16px" }}>
-                  Select the final outcome and provide a justification for the
-                  chain.
-                </p>
-
-                <div className="form-group">
-                  <label className="form-label">Winning Option</label>
-                  <select
-                    className="form-input"
-                    style={{ width: "100%", cursor: "pointer" }}
-                    value={winningOptionId}
-                    onChange={(e) => setWinningOptionId(e.target.value)}
-                  >
-                    <option value="">Select Outcome...</option>
-                    {marketOptions.map((opt) => (
-                      <option key={opt.label} value={opt.label}>
-                        {opt.name}
-                      </option>
-                    ))}
-                  </select>
+            {market.resolved && (
+              <div className="resolution-result-card">
+                <div className="res-icon-wrapper">🏆</div>
+                <div className="res-content">
+                  <h3>MARKET SETTLED</h3>
+                  <p>
+                    Winning Outcome:{" "}
+                    <span className="winner-highlight">
+                      {market.winningOption || "Fetching winner..."}
+                    </span>
+                  </p>
+                  <div className="resolution-hash">
+                    Root: {market.stateRoot?.slice(0, 10)}...
+                    {market.stateRoot?.slice(-8)}
+                  </div>
                 </div>
-
-                <div className="form-group" style={{ marginTop: "16px" }}>
-                  <label className="form-label">Justification</label>
-                  <textarea
-                    className="form-textarea"
-                    placeholder="Source of truth URL or reasoning..."
-                    rows={3}
-                    value={justification}
-                    onChange={(e) => setJustification(e.target.value)}
-                  />
-                </div>
-
-                <button
-                  className="submit-btn"
-                  style={{ marginTop: "16px", width: "100%" }}
-                  onClick={handleResolve}
-                  disabled={
-                    isLoading /* Disable until resolution logic is implemented */
-                  }
-                >
-                  {isLoading ? "Resolving..." : "Confirm Resolution →"}
-                </button>
               </div>
             )}
+            {!market.resolved &&
+              isExpired &&
+              market.creator === address &&
+              market.stateRoot != zeroHash && (
+                <div className="sidebar-card resolution-card">
+                  <h3 className="sidebar-card-title">Resolve Market</h3>
+                  <p className="form-hint" style={{ marginBottom: "16px" }}>
+                    Select the final outcome and provide a justification for the
+                    chain.
+                  </p>
+
+                  <div className="form-group">
+                    <label className="form-label">Winning Option</label>
+                    <select
+                      className="form-input"
+                      style={{ width: "100%", cursor: "pointer" }}
+                      value={winningOptionId}
+                      onChange={(e) => setWinningOptionId(e.target.value)}
+                    >
+                      <option value="">Select Outcome...</option>
+                      {marketOptions.map((opt) => (
+                        <option key={opt.label} value={opt.label}>
+                          {opt.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: "16px" }}>
+                    <label className="form-label">Justification</label>
+                    <textarea
+                      className="form-textarea"
+                      placeholder="Source of truth URL or reasoning..."
+                      rows={3}
+                      value={justification}
+                      onChange={(e) => setJustification(e.target.value)}
+                    />
+                  </div>
+
+                  <button
+                    className="submit-btn"
+                    style={{ marginTop: "16px", width: "100%" }}
+                    onClick={handleResolve}
+                    disabled={
+                      isLoading /* Disable until resolution logic is implemented */
+                    }
+                  >
+                    {isLoading ? "Resolving..." : "Confirm Resolution →"}
+                  </button>
+                </div>
+              )}
+            {!market.resolved &&
+              isExpired &&
+              market.stateRoot != zeroHash &&
+              market.resolutionType?.toLowerCase() !== "creator" && (
+                <div className="resolution-action-card">
+                  <div className="res-icon-wrapper">⚖️</div>
+                  <div className="res-content">
+                    <h3>READY FOR RESOLUTION</h3>
+                    <p>
+                      This market requires settlement via{" "}
+                      {market.resolutionType || "Oracle"}.
+                    </p>
+                  </div>
+                  <button
+                    className={"resolve-oracle-btn"}
+                    onClick={handlePublicResolve}
+                  >
+                    TRIGGER RESOLUTION
+                    <span className="btn-arrow">→</span>
+                  </button>
+                </div>
+              )}
             {/* Market Info Card */}
             <div className="info-card">
               <h3 className="info-card-title">Market Details</h3>
@@ -392,12 +457,7 @@ export default function MarketPage() {
                 </div>
                 <div className="market-stat">
                   <div className="market-stat-label">Liquidity Factor</div>
-                  <div className="market-stat-value position">
-                    {marketOptions.reduce(
-                      (sum, opt) => sum + opt.userShares,
-                      0,
-                    )}
-                  </div>
+                  <div className="market-stat-value position">{state.b}</div>
                 </div>
               </div>
             </div>
@@ -657,7 +717,9 @@ export default function MarketPage() {
                           <span className="closed-icon">🔒</span>
                           {market.resolved
                             ? "Market Resolved"
-                            : "Market Resolving"}
+                            : market.stateRoot == zeroHash
+                              ? "Market Expired - Awaiting Resolution"
+                              : "Market Expired - Answer submitted, awaiting settlement"}
                         </div>
                       )}
                     </div>
