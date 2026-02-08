@@ -48,6 +48,12 @@ export function useHakiContract(label?: string) {
         functionName: "text",
         args: subnode ? [subnode, "options"] : undefined,
       },
+      {
+        address: RESOLVER_ADDRESS,
+        abi: PUBLIC_RESOLVER_ABI,
+        functionName: "text",
+        args: subnode ? [subnode, "winner"] : undefined,
+      },
     ],
     query: {
       enabled: !!subnode,
@@ -60,10 +66,12 @@ export function useHakiContract(label?: string) {
   });
 
   // Extract results safely
-  const [marketResult, descriptionResult, optionsResult] = data || [];
+  const [marketResult, descriptionResult, optionsResult, winnerResult] =
+    data || [];
   const marketMapping = marketResult?.result as unknown as any[];
   const description = descriptionResult?.result as string;
   const options = optionsResult?.result as string;
+  const winnerLabel = winnerResult?.result as string;
 
   // --- WRITE LOGIC ---
   const {
@@ -132,12 +140,6 @@ export function useHakiContract(label?: string) {
 
     const stateRoot = data.merkleRoot as Hex;
     const convertedJustification = stringToHex(justification);
-    console.log("Submitting market result with", {
-      marketNode,
-      optionLabel,
-      stateRoot,
-      convertedJustification,
-    });
     writeContract({
       address: HAKI_ADDRESS,
       abi: HAKI_ABI,
@@ -145,6 +147,22 @@ export function useHakiContract(label?: string) {
       args: [marketNode, optionLabel, stateRoot, convertedJustification],
     });
   };
+
+  const resolvePublicMarket = async (marketId: string, marketLabel: string) => {
+    const response = await fetch("/api/market/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        marketId: marketId,
+        marketLabel: marketLabel,
+      }),
+    });
+    const data = await response.json();
+
+    if (!response.ok)
+      throw new Error(data.error || "Failed to resolve market root");
+  };
+
 
   const syncMarketToDb = useCallback(async () => {
     if (!isSuccess || !variables) return;
@@ -204,9 +222,15 @@ export function useHakiContract(label?: string) {
         description: description || "",
         options: options ? options.split(",") : [], // Convert comma string back to Array
         resolutionType: marketMapping[8],
+        winningOption:
+          marketMapping[2] !==
+          "0x0000000000000000000000000000000000000000000000000000000000000000"
+            ? winnerLabel
+            : null,
       }
     : null;
 
+      console.log("Market data:", market);
   return {
     createMarket,
     refetchMarket,
@@ -218,5 +242,6 @@ export function useHakiContract(label?: string) {
     hash,
     syncMarketToDb,
     resolveCreatorMarket,
+    resolvePublicMarket,
   };
 }

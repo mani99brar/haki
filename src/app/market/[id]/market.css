@@ -66,6 +66,82 @@
   letter-spacing: 0.05em;
 }
 
+/* Container for the Action Area */
+.resolution-action-card {
+  background: var(--bg-card);
+  border: 4px solid #000;
+  box-shadow: 8px 8px 0px #000;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 32px;
+  animation: slideIn 0.4s ease-out;
+}
+
+.res-icon-wrapper {
+  font-size: 48px;
+  margin-bottom: 16px;
+  animation: bounce 2s infinite;
+}
+
+.res-content h3 {
+  font-family: var(--font-display); /* or your heavy font */
+  font-size: 24px;
+  font-weight: 900;
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+}
+
+.res-content p {
+  margin: 0 0 24px 0;
+  font-family: 'Courier New', monospace;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* The Brutal Button */
+.resolve-oracle-btn {
+  width: 100%;
+  background: #a855f7; /* Purple for Oracle/Governance */
+  color: #fff;
+  border: 3px solid #000;
+  padding: 14px 24px;
+  font-family: 'Courier New', monospace;
+  font-weight: 900;
+  font-size: 16px;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+  box-shadow: 4px 4px 0px rgba(0,0,0,1);
+}
+
+.resolve-oracle-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px rgba(0,0,0,1);
+  background: #9333ea;
+}
+
+.resolve-oracle-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px #000;
+}
+
+.btn-arrow {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
 /* Inputs & Textarea - Matching the .bet-input style */
 .resolution-card .form-input,
 .resolution-card .form-textarea {
@@ -1346,4 +1422,82 @@
   .market-sidebar {
     grid-template-columns: 1fr;
   }
+  /* === RESOLVED STATE BANNER === */
+.resolution-result-card {
+  background: rgba(0, 212, 170, 0.1); /* Teal tint */
+  border: 4px solid var(--accent-teal);
+  box-shadow: 8px 8px 0px var(--accent-teal);
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 32px;
+  animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+.winner-highlight {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--accent-teal);
+  text-transform: uppercase;
+  background: #fff;
+  padding: 2px 8px;
+  border: 2px solid #000;
+  margin-left: 8px;
+  box-shadow: 4px 4px 0px #000;
+  display: inline-block;
+}
+
+.resolution-hash {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 8px;
+  background: rgba(0,0,0,0.05);
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+/* === OPTION CARD STATES === */
+
+/* WINNER CARD */
+.outcome-bet-card.winner-card {
+  border-color: var(--accent-teal);
+  background: rgba(0, 212, 170, 0.05);
+  box-shadow: 0 0 0 2px var(--accent-teal);
+  transform: scale(1.02);
+  order: -1; /* Move winner to top if you use flex column */
+}
+
+.winner-badge {
+  font-size: 12px;
+  background: var(--accent-teal);
+  color: #000;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-left: 12px;
+  font-weight: 900;
+  border: 1px solid #000;
+  animation: pulse 2s infinite;
+}
+
+/* LOSER CARD */
+.outcome-bet-card.loser-card {
+  opacity: 0.6;
+  filter: grayscale(0.8);
+  border-color: var(--border-subtle);
+  background: var(--bg-primary);
+}
+
+/* Footer Status Specifics */
+.market-closed-notice.winner {
+  background: var(--accent-teal);
+  color: #000;
+  border: 2px solid #000;
+  font-weight: 900;
+}
+}
+
+
