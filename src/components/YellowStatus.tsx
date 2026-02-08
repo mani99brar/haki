@@ -5,52 +5,64 @@ import { useYellow } from "@/context/YellowProvider";
 import "./YellowStatus.css";
 
 export default function YellowStatus() {
-  const { status, requestSignature, activeChannelId, loading } = useYellow();
+  // 1. Destructure the NEW names from your updated Provider
+  const { status, connect, signSession, activeChannelId } = useYellow();
 
-  const statusMap = {
-    init: { label: "INITIALIZING", class: "status-init" },
-    disconnected: { label: "OFFLINE", class: "status-off" },
-    "waiting-signature": { label: "SIGN REQ", class: "status-sign" },
-    authenticating: { label: "AUTH...", class: "status-wait" },
-    connected: { label: "CONNECTED", class: "status-ready" },
-    active: { label: "SESSION ACTIVE", class: "status-active" },
+  // 2. Map the new 4-state Enum to UI styles
+  const getStatusConfig = () => {
+    switch (status) {
+      case "connecting":
+        return { label: "CONNECTING...", cssClass: "status-wait" };
+      case "waiting-signature":
+        return { label: "SIGN REQ", cssClass: "status-sign" };
+      case "connected":
+        return { label: "L3 ACTIVE", cssClass: "status-active" };
+      case "disconnected":
+      default:
+        return { label: "OFFLINE", cssClass: "status-off" };
+    }
   };
 
-  // Determine current display based on status, but override label if loading is true
-  const current = statusMap[status] || statusMap.disconnected;
-  const displayLabel = loading ? "PROCESSING..." : current.label;
-  const displayClass = loading ? "status-wait" : current.class;
+  const config = getStatusConfig();
 
-  const handleSignNow = async () => {
-    console.log(
-      "Attempting to connect or request signature for Yellow session...",
-    );
-    await requestSignature();
+  // 3. Smart Action Handler
+  const handleAction = async () => {
+    if (status === "disconnected") {
+      connect(); // Retry connection
+    } else if (status === "waiting-signature") {
+      await signSession(); // Trigger wallet signature
+    }
   };
+
+  // 4. Decide if we need an action button
+  const showButton =
+    status === "disconnected" || status === "waiting-signature";
+  const buttonLabel = status === "waiting-signature" ? "SIGN NOW" : "CONNECT";
 
   return (
-    <div className={`yellow-status-pill ${displayClass}`}>
+    <div className={`yellow-status-pill ${config.cssClass}`}>
       <div className="status-indicator">
         <p className="status-indicator-title">L3 Status</p>
         <span className="status-dot"></span>
-        <span className="status-label">{displayLabel}</span>
+        <span className="status-label">{config.label}</span>
       </div>
 
-      {activeChannelId && !loading && (
+      {/* Only show Channel ID when connected */}
+      {status === "connected" && activeChannelId && (
         <div className="channel-id-tag">
-          {activeChannelId.slice(0, 6)}...{activeChannelId.slice(-4)}
+          CH_ID: {activeChannelId.slice(0, 6)}...
         </div>
       )}
 
-      {/* Button is hidden during loading to prevent spamming the connection */}
-      {!loading &&
-        (status === "disconnected" || status === "waiting-signature") && (
-          <button className="reconnect-btn-brutal" onClick={handleSignNow}>
-            {status === "waiting-signature" ? "SIGN NOW" : "CONNECT L3"}
-          </button>
-        )}
+      {/* Action Button for Manual Intervention */}
+      {showButton && (
+        <button className="reconnect-btn-brutal" onClick={handleAction}>
+          {buttonLabel}
+        </button>
+      )}
 
-      {loading && <div className="loading-spinner-tiny"></div>}
+      {/* Tiny Spinner for Connecting state */}
+      {status === "connecting" && <div className="loading-spinner-tiny"></div>}
     </div>
   );
 }

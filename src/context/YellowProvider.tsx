@@ -9,9 +9,16 @@ import React, {
   useCallback,
   useEffect,
 } from "react";
-import { Hex } from "viem";
+import {
+  Hex,
+  createWalletClient,
+  custom,
+  createPublicClient,
+  http,
+} from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { useAccount, useWalletClient } from "wagmi";
+import { sepolia } from "viem/chains";
 import {
   createECDSAMessageSigner,
   createAuthRequestMessage,
@@ -21,91 +28,95 @@ import {
   NitroliteClient,
   WalletStateSigner,
 } from "@erc7824/nitrolite";
-import { createWalletClient, custom, createPublicClient, http } from "viem";
-import { sepolia } from "viem/chains";
 
 // --- Configuration ---
 const CLEARNODE_URL = "wss://clearnet-sandbox.yellow.com/ws";
 const STORAGE_KEY_SK = "yellow_session_sk";
 const STORAGE_KEY_JWT = "yellow_jwt";
 
+export type YellowStatus =
+  | "disconnected"
+  | "connecting"
+  | "waiting-signature"
+  | "connected";
+
 interface YellowContextType {
-  ws: WebSocket | null;
-  status:
-    | "disconnected"
-    | "authenticating"
-    | "connected"
-    | "active"
-    | "waiting-signature";
-  jwt: string | null;
+  status: YellowStatus;
   activeChannelId: string | null;
-  connect: () => Promise<void>;
-  requestSignature: () => Promise<void>;
+  // Actions
+  connect: () => void;
+  disconnect: () => void;
+  signSession: () => Promise<void>;
   sendMessage: (msg: string) => void;
+  // Data
   client: NitroliteClient | null;
   sessionSigner: any;
-  loading: boolean;
-  setLoading: (val: boolean) => void;
-  pendingChannelData: any;
+  jwt: string | null;
+  ws: WebSocket | null;
 }
 
 const YellowContext = createContext<YellowContextType | undefined>(undefined);
 
 export function YellowProvider({ children }: { children: ReactNode }) {
-  // Global State
-  const [status, setStatus] =
-    useState<YellowContextType["status"]>("disconnected");
-  const [jwt, setJwt] = useState<string | null>(null);
+  // --- Global State ---
+  const [status, setStatus] = useState<YellowStatus>("disconnected");
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
-  const [pendingYellowConnection, setPendingYellowConnection] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [pendingChannelData, setPendingChannelData] = useState<any>();
-  const lastChallengeRef = useRef<string | null>(null);
+  const [jwt, setJwt] = useState<string | null>(null);
+
+  // --- Refs (Mutable data that doesn't trigger re-renders) ---
+  const wsRef = useRef<WebSocket | null>(null);
+  const clientRef = useRef<NitroliteClient | null>(null);
+  const sessionSignerRef = useRef<any>(null);
+
+  // Auth Refs
+  const latestChallengeRef = useRef<string | null>(null);
   const authParamsRef = useRef<any>(null);
 
-  // Refs
-  const wsRef = useRef<WebSocket | null>(null);
-  const sessionSignerRef = useRef<any>(null);
-  const clientRef = useRef<NitroliteClient | null>(null);
-
-  // Wallet Hooks
+  // --- Wallet Hooks ---
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
 
-  // --- Helper: Message Sender ---
+  // --- 1. Session Key Initialization (Run Once) ---
+  useEffect(() => {
+    let sessionKey = localStorage.getItem(STORAGE_KEY_SK) as Hex | null;
+    if (!sessionKey) {
+      sessionKey = generatePrivateKey();
+      localStorage.setItem(STORAGE_KEY_SK, sessionKey);
+    }
+    // Create the generic signer for the session key
+    sessionSignerRef.current = createECDSAMessageSigner(sessionKey);
+  }, []);
+
+  // --- 2. Message Sender Helper ---
   const sendMessage = useCallback((msg: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log("⬆️ SEND:", JSON.parse(msg)); // Debug Log
       wsRef.current.send(msg);
     } else {
-      console.warn("⚠️ WebSocket not open, message dropped:", msg);
+      console.warn("⚠️ WebSocket not ready. Message dropped.");
     }
   }, []);
 
-  // --- INTERNAL: Connection Engine ---
-  const executeYellowConnection = useCallback(async () => {
-    if (!address || !walletClient) {
-      return;
-    }
+  // --- 3. The Core Connection Logic ---
+  const executeConnection = useCallback(async () => {
+    // Guards
+    if (!address || !walletClient || !sessionSignerRef.current) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    if (
-      status !== "disconnected" &&
-      wsRef.current?.readyState === WebSocket.OPEN
-    ) {
-      return;
-    }
+    setStatus("connecting");
 
-    setStatus("authenticating");
-
+    // A. Setup Nitrolite SDK
     try {
-      // 1. Initialize SDK Clients
+      const vPublicClient = createPublicClient({
+        chain: sepolia,
+        transport: http("https://1rpc.io/sepolia"),
+      });
+
+      // We wrap the wagmi walletClient in a viem client for consistency
       const vWalletClient = createWalletClient({
         chain: sepolia,
         transport: custom((window as any).ethereum),
         account: address,
-      });
-      const vPublicClient = createPublicClient({
-        chain: sepolia,
-        transport: http("https://1rpc.io/sepolia"),
       });
 
       clientRef.current = new NitroliteClient({
@@ -120,48 +131,46 @@ export function YellowProvider({ children }: { children: ReactNode }) {
         challengeDuration: BigInt(3600),
       });
 
-      // 2. Session Key Logic
-      let sessionKey = localStorage.getItem(STORAGE_KEY_SK) as Hex | null;
-      if (!sessionKey) {
-        sessionKey = generatePrivateKey();
-        localStorage.setItem(STORAGE_KEY_SK, sessionKey);
-      }
-      const sessionAccount = privateKeyToAccount(sessionKey);
-      sessionSignerRef.current = createECDSAMessageSigner(sessionKey);
-
-      // 3. Setup WebSocket
+      // B. WebSocket Setup
       const ws = new WebSocket(CLEARNODE_URL);
       wsRef.current = ws;
 
       ws.onopen = async () => {
-        // Define params once
+        console.log("🔌 WS Open");
+
+        // Prepare Auth Params
+        const sessionKeyHex = localStorage.getItem(STORAGE_KEY_SK) as Hex;
+        const sessionAccount = privateKeyToAccount(sessionKeyHex);
+
         const params = {
           address: address,
           application: "Haki",
           session_key: sessionAccount.address,
           allowances: [{ asset: "ytest.usd", amount: "1000000000000000000" }],
-          expires_at: BigInt(Math.floor(Date.now() / 1000) + 36000), // Fixed timestamp
+          expires_at: BigInt(Math.floor(Date.now() / 1000) + 36000),
           scope: "test.app",
         };
-
-        // Save them for requestSignature to use later
         authParamsRef.current = params;
 
-        // Construct auth_request with the token if it exists
+        // Send Auth Request
         const authMsg = await createAuthRequestMessage(params);
-
         ws.send(authMsg);
       };
 
       ws.onmessage = async (event) => {
         const response = JSON.parse(event.data.toString());
-        console.log(response);
+        console.log("⬇️ RECV:", response);
+
+        // Handle Errors (Like Invalid Token)
         if (response.error) {
-          // If the token was invalid/expired, clear it so next attempt starts fresh
-          if (response.error.code === 4001) {
-            // Common 'Invalid Token' code
-            localStorage.removeItem(STORAGE_KEY_JWT);
+          if (
+            response.error.code === 4001 ||
+            response.error.message?.includes("token")
+          ) {
+            console.warn("⚠️ Invalid JWT. Clearing and requiring re-sign.");
+            localStorage.removeItem(STORAGE_KEY_JWT + address);
             setJwt(null);
+            // We don't close socket, the clearnode will likely send a challenge next
           }
           return;
         }
@@ -169,223 +178,142 @@ export function YellowProvider({ children }: { children: ReactNode }) {
         const type = response.res?.[1];
         const data = response.res?.[2];
 
-        // --- AUTH CHALLENGE: Only triggered if JWT is missing or invalid ---
+        // --- Scenario A: Clearnode asks for Proof (Challenge) ---
         if (type === "auth_challenge") {
-          // FIX: Retrieve JWT from storage to resume session
+          latestChallengeRef.current = data.challenge_message;
+
+          // 1. Try to use stored JWT first
           const storedJwt = localStorage.getItem(STORAGE_KEY_JWT + address);
-          console.log(storedJwt);
-          try {
-            if (storedJwt) {
-              console.log("USING jwt");
+          if (storedJwt) {
+            console.log("🔑 Using stored JWT...");
+            try {
               const verifyMsg = await createAuthVerifyMessageWithJWT(storedJwt);
               ws.send(verifyMsg);
-            } else {
-              // Manual path: Save the challenge and wait
-              lastChallengeRef.current = data.challenge_message;
-              setStatus("waiting-signature");
-              // const signer = createEIP712AuthMessageSigner(
-              //   vWalletClient,
-              //   {
-              //     session_key: sessionAccount.address,
-              //     allowances: [
-              //       { asset: "ytest.usd", amount: "1000000000000000000" },
-              //     ],
-              //     expires_at: BigInt(Math.floor(Date.now() / 1000) + 36000),
-              //     scope: "test.app",
-              //   },
-              //   { name: "Haki" },
-              // );
-
-              // const verifyMsg = await createAuthVerifyMessageFromChallenge(
-              //   signer,
-              //   data.challenge_message,
-              // );
-              // ws.send(verifyMsg);
+              return; // We sent the JWT, wait for 'auth_verify'
+            } catch (err) {
+              console.error("JWT creation failed", err);
             }
-          } catch (e) {
-            console.log(
-              "JWT verification failed, falling back to manual auth flow",
-              e,
-            );
-            ws.close();
           }
+
+          // 2. If no JWT (or failed), we must wait for user signature
+          console.log("📝 No JWT found. Waiting for signature...");
+          setStatus("waiting-signature");
         }
 
-        // --- AUTH SUCCESS: New JWT issued or existing one validated ---
+        // --- Scenario B: Auth Success ---
         if (type === "auth_verify") {
           const newJwt = data.jwt_token;
           if (newJwt) {
             setJwt(newJwt);
-            localStorage.setItem(STORAGE_KEY_JWT + data.address, newJwt);
+            localStorage.setItem(STORAGE_KEY_JWT + address, newJwt);
           }
           setStatus("connected");
+          console.log("✅ Connected to Yellow Network");
         }
 
+        // --- Scenario C: Channels Data ---
         if (type === "channels") {
-          console.log("CHANNEL full DATA", data);
-          const channelData = data.channels[0];
-          console.log("CHANNEL DATA", channelData);
-          setActiveChannelId(data.channels[0].channel_id);
+          if (data.channels && data.channels.length > 0) {
+            setActiveChannelId(data.channels[0].channel_id);
+          }
         }
+
         if (type === "create_channel") {
-          const channel = {
-            participants: (data.channel.participants || []).map(
-              (p: string) => p as `0x${string}`,
-            ),
-            adjudicator: data.channel.adjudicator as `0x${string}`,
-            challenge: BigInt(data.channel.challenge || 3600),
-            nonce: BigInt(data.channel.nonce),
-          };
-
-          // 2. Defensively map Initial State
-          const unsignedInitialState: any = {
-            intent: BigInt(data.state.intent || 1),
-            version: BigInt(data.state.version || 0),
-            // Use 'data' for the property name as required by the TS error earlier
-            data: data.state.state_data || "0x",
-            allocations: (data.state.allocations || []).map((a: any) => {
-              // ENSURE NO UNDEFINED VALUES HERE
-              if (!a.asset || !a.destination) {
-                console.error("🚨 Found malformed allocation:", a);
-              }
-              return {
-                asset: (a.asset ||
-                  "0x0000000000000000000000000000000000000000") as `0x${string}`,
-                destination: (a.destination ||
-                  "0x0000000000000000000000000000000000000000") as `0x${string}`,
-                amount: BigInt(a.amount || 0),
-              };
-            }),
-          };
-
-          // DEBUG LOG: Check for any 'undefined' strings in this output
-          console.log("🛠️ FINAL OBJECT CHECK:", {
-            channel,
-            unsignedInitialState,
-          });
-
-          // 2. Log to verify before sending
-          console.log("🚀 Prepared State for SDK:", unsignedInitialState);
-          const createResult = await clientRef.current?.createChannel({
-            channel,
-            unsignedInitialState,
-            serverSignature: data.server_signature as `0x${string}`,
-          });
-          console.log(createResult);
-          // Store the full response data so the Onboarding Manager can grab it
-          setPendingChannelData(data);
           setActiveChannelId(data.channel_id);
         }
-
-        // --- DISCOVERY & CHANNEL LOGIC ---
-        // (remains the same as your provided code)
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
+        console.log("🔌 WS Closed", event.code);
+        wsRef.current = null; // Clear ref
         setStatus("disconnected");
-        setLoading(false);
       };
-    } catch (error: any) {
-      console.error("Connection failed:", error);
+
+      ws.onerror = (err) => {
+        console.error("❌ WS Error", err);
+        // onError usually triggers onClose immediately after
+      };
+    } catch (err) {
+      console.error("Setup Failed", err);
       setStatus("disconnected");
-      setLoading(false);
-    }
-  }, [address, walletClient, status]);
-
-  // --- PUBLIC: Connect Function ---
-  const connect = useCallback(async () => {
-    // 1. If Wallet NOT Connected: Open Modal
-    if (!isConnected || !address || !walletClient) {
-      setPendingYellowConnection(true); // Flag to retry later
-      return;
-    }
-
-    // 2. If Wallet IS Connected: Start Engine
-    await executeYellowConnection();
-  }, [isConnected, address, walletClient, executeYellowConnection]);
-
-  /**
-   * Triggers the EIP-712 signature request to authorize the L3 session.
-   * This should be called manually from the Onboarding Modal.
-   */
-  const requestSignature = useCallback(async () => {
-    if (!address || !walletClient || !wsRef.current) {
-      return;
-    }
-
-    try {
-      setStatus("authenticating");
-
-      const { session_key, allowances, expires_at, scope } =
-        authParamsRef.current;
-
-      // 1. Create the EIP-712 Signer
-      const signer = createEIP712AuthMessageSigner(
-        walletClient,
-        {
-          session_key,
-          allowances,
-          expires_at,
-          scope,
-        },
-        { name: "Haki" },
-      );
-
-      // 2. We need the challenge message.
-      // Usually, the Clearnode sends this in the 'auth_challenge' message.
-      // We'll store it in a Ref or State when it arrives in ws.onmessage.
-      if (!lastChallengeRef.current) {
-        return;
-      }
-
-      const verifyMsg = await createAuthVerifyMessageFromChallenge(
-        signer,
-        lastChallengeRef.current,
-      );
-
-      // 3. Send the verification back to the Clearnode
-      wsRef.current.send(verifyMsg);
-    } catch (error) {
-      console.error("Signature failed:", error);
-      setStatus("disconnected");
-      setLoading(false);
     }
   }, [address, walletClient]);
 
-  // --- EFFECT: Handle Pending Connection ---
-  // Triggers ONLY if user clicked 'connect' previously and just finished connecting wallet
-  useEffect(() => {
-    if (pendingYellowConnection && isConnected && address && walletClient) {
-      setPendingYellowConnection(false);
-      executeYellowConnection();
-    }
-  }, [
-    pendingYellowConnection,
-    isConnected,
-    address,
-    walletClient,
-    executeYellowConnection,
-  ]);
+  // --- 4. User Action: Sign Session ---
+  // Called when status is 'waiting-signature'
+  const signSession = useCallback(async () => {
+    if (
+      !walletClient ||
+      !wsRef.current ||
+      !latestChallengeRef.current ||
+      !authParamsRef.current
+    )
+      return;
 
+    try {
+      const { session_key, allowances, expires_at, scope } =
+        authParamsRef.current;
+
+      const signer = createEIP712AuthMessageSigner(
+        walletClient,
+        { session_key, allowances, expires_at, scope },
+        { name: "Haki" },
+      );
+
+      const verifyMsg = await createAuthVerifyMessageFromChallenge(
+        signer,
+        latestChallengeRef.current,
+      );
+
+      wsRef.current.send(verifyMsg);
+      // Status remains 'waiting-signature' until 'auth_verify' message comes back
+    } catch (err) {
+      console.error("Signature rejected", err);
+    }
+  }, [walletClient]);
+
+  // --- 5. Auto-Connect Effect ---
+  // Replaces YellowConnectionManager
   useEffect(() => {
-    console.log("YELLOW", status);
-  }, [status]);
+    // Only auto-connect if:
+    // 1. Wallet is connected
+    // 2. We are currently disconnected
+    // 3. We have the walletClient ready
+    if (isConnected && address && walletClient && status === "disconnected") {
+      executeConnection();
+    }
+
+    // Cleanup on unmount or account change
+    return () => {
+      if (!isConnected && wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [isConnected, address, walletClient, status, executeConnection]);
+
+  // --- 6. Explicit Disconnect ---
+  const disconnect = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    setStatus("disconnected");
+    setActiveChannelId(null);
+    setJwt(null);
+  }, []);
 
   return (
     <YellowContext.Provider
       value={{
-        ws: wsRef.current,
         status,
-        jwt,
         activeChannelId,
-        connect,
-        requestSignature,
+        connect: executeConnection, // Manual retry
+        disconnect,
+        signSession,
         sendMessage,
         client: clientRef.current,
         sessionSigner: sessionSignerRef.current,
-        loading,
-        setLoading,
-        pendingChannelData,
+        jwt,
+        ws: wsRef.current,
       }}
     >
       {children}
