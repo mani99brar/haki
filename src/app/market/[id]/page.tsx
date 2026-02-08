@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef, use } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import './market.css';

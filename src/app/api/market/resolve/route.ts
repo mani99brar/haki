@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { predictProbabilities } from "@/utils/ai";
-import { createPublicClient, createWalletClient, Hex, http, namehash, stringToHex } from "viem";
+import { createWalletClient, Hex, http, namehash, stringToHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { HAKI_ADDRESS } from "@/utils/consts";
 import { HAKI_ABI } from "@/utils/abis/Haki";
@@ -110,11 +110,6 @@ export async function POST(req: NextRequest) {
         account,
         chain: sepolia,
         transport: http(), // or default http()
-      });
-
-      const publicClient = createPublicClient({
-        chain: sepolia,
-        transport: http(process.env.NEXT_PUBLIC_RPC_URL),
       });
 
       // Calculate ENS Node: namehash("label.haki-pm.eth")
