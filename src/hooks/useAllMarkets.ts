@@ -2,7 +2,7 @@ import { usePublicClient } from "wagmi";
 import { useState, useEffect, useCallback } from "react";
 import { parseAbiItem } from "viem";
 import { HAKI_ADDRESS } from "@/utils/consts";
-const DEPLOY_BLOCK = BigInt(10204130);
+const DEPLOY_BLOCK = BigInt(10213170);
 const BLOCK_STEP = BigInt(10000); // Adjust based on your RPC's limits
 
 export function useAllMarkets() {

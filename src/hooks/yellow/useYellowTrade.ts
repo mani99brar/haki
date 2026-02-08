@@ -118,6 +118,7 @@ export function useYellowTrade() {
 
       // We hit the backend. The backend verifies this session signature
       // and then its own Clearnode signs the actual payout.
+      console.log("SELLING");
       const response = await fetch("/api/market/execute-sell", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -133,7 +134,8 @@ export function useYellowTrade() {
             : "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
         }),
       });
-
+      console.log("SELL RESPONSE", response);
+      setIsTrading(false);
       return await response.json();
     } catch (err) {
       console.error("❌ Sell shares failed:", err);

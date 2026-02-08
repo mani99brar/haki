@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useHakiContract } from '@/hooks/useHakiContract';
 import './MarketCard.css';
+import { zeroHash } from "viem";
 
 interface MarketCardProps {
   marketLabel: string;
@@ -23,6 +24,8 @@ export default function MarketCard({ marketLabel }: MarketCardProps) {
   const marketStatus = useMemo(() => {
     if (!market) return { label: 'Loading', className: 'loading' };
     if (market.resolved) return { label: 'Resolved', className: 'resolved' };
+    if (market.stateRoot != zeroHash)
+      return { label: "Answered", className: "resolved" };
     if (isExpired) return { label: 'Resolving', className: 'resolving' };
     return { label: 'Open', className: 'open' };
   }, [market, isExpired]);

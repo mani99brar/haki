@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       .select("id, question, status, resolution_type")
       .eq("id", marketId)
       .single();
-    
+
     if (marketError || !market) {
       return NextResponse.json({ error: "Market not found" }, { status: 404 });
     }
@@ -40,71 +40,94 @@ export async function POST(req: NextRequest) {
     //     { status: 409 },
     //   );
     // }
-      console.log(market.resolution_type);
-      
-    if (market.resolution_type !== "oracle") {
-      return NextResponse.json(
-        { error: "Market is not oracle-resolved" },
-        { status: 400 },
-      );
-    }
+      let winningLabel = "";
+      let justification = "";
+      if (market.resolution_type !== "oracle") {
+        const { data: options, error: optionsError } = await supabase.rpc(
+          "get_market_options",
+          { p_market: marketId },
+        );
+        if (optionsError || !options || options.length < 2) {
+          return NextResponse.json(
+            { error: "Failed to fetch market prices" },
+            { status: 500 },
+          );
+        }
+        const sorted = [...options].sort(
+          (a: any, b: any) =>
+            b.marginal_price - a.marginal_price ||
+            a.option_id.localeCompare(b.option_id),
+        );
 
-    // --------------------------------------------------
-    // 2️⃣ Fetch options
-    // --------------------------------------------------
-    const { data: options, error: optionsError } = await supabase
-      .from("options")
-      .select("id, label")
-      .eq("market_id", marketId);
+        const winning = sorted[0];
+        winningLabel = winning.label;
+        justification =
+          "Resolved by LMSR oracle. Winner has highest marginal price.";
+      } else {
+        // --------------------------------------------------
+        // 2️⃣ Fetch options
+        // --------------------------------------------------
+        const { data: options, error: optionsError } = await supabase
+          .from("options")
+          .select("id, label")
+          .eq("market_id", marketId);
 
-    if (optionsError || !options || options.length < 2) {
-      return NextResponse.json(
-        { error: "Invalid market options" },
-        { status: 400 },
-      );
-    }
+        if (optionsError || !options || options.length < 2) {
+          return NextResponse.json(
+            { error: "Invalid market options" },
+            { status: 400 },
+          );
+        }
 
-    const labels = options.map((o) => o.label);
+        const labels = options.map((o) => o.label);
 
-    // --------------------------------------------------
-    // 3️⃣ Call oracle (pure function)
-    // --------------------------------------------------
-    const probabilities = await predictProbabilities(market.question, labels);
-      console.log(probabilities);
-    // --------------------------------------------------
-    // 4️⃣ Deterministically select winner
-    // --------------------------------------------------
-    const sorted = Object.entries(probabilities).sort(
-      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
-    );
+        // --------------------------------------------------
+        // 3️⃣ Call oracle (pure function)
+        // --------------------------------------------------
+        const probabilities = await predictProbabilities(
+          market.question,
+          labels,
+        );
+        // --------------------------------------------------
+        // 4️⃣ Deterministically select winner
+        // --------------------------------------------------
+        const sorted = Object.entries(probabilities).sort(
+          (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+        );
 
-    const [winningLabel, winningProb] = sorted[0];
+        const [aiWinningLabel, winningProb] = sorted[0];
 
-    const winningOption = options.find((o) => o.label === winningLabel);
+        const winningOption = options.find((o) => o.label === aiWinningLabel);
 
-    if (!winningOption) {
-      throw new Error("Oracle returned unknown option label");
-    }
-    
+        if (!winningOption) {
+          throw new Error("Oracle returned unknown option label");
+        }
+        winningLabel = winningOption.label;
+        justification = stringToHex(
+          `Resolved by AI Oracle. Winner: ${winningLabel} with ${(winningProb * 100).toFixed(1)}% confidence.`,
+        );
+      }
+
       const apiUrl = `${getBaseUrl()}/api/merkleroot`;
-      
-      
-    const merkleResponse = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        marketId: marketId,
-        optionLabel: winningLabel, // Passing the label we just determined
-      }),
-    });
+
+      const merkleResponse = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          marketId: marketId,
+          optionLabel: winningLabel, // Passing the label we just determined
+        }),
+      });
       const data = await merkleResponse.json();
       if (!merkleResponse.ok)
         throw new Error(data.error || "Failed to generate state root");
       const stateRoot = data.merkleRoot as Hex;
 
-      const account = privateKeyToAccount(process.env.HAKI_VAULT_PRIVATE_KEY! as `0x${string}`);
+      const account = privateKeyToAccount(
+        process.env.HAKI_VAULT_PRIVATE_KEY! as `0x${string}`,
+      );
 
       const client = createWalletClient({
         account,
@@ -115,28 +138,22 @@ export async function POST(req: NextRequest) {
       // Calculate ENS Node: namehash("label.haki-pm.eth")
       const node = namehash(`${marketLabel}.haki-pm.eth`);
 
-      // Justification data
-      const justification = stringToHex(
-        `Resolved by AI Oracle. Winner: ${winningLabel} with ${(winningProb * 100).toFixed(1)}% confidence.`,
-      );
+    console.log(`Submitting result for node: ${node}`);
+    console.log(`Winner: ${winningLabel}, Root: ${stateRoot}`);
+    const finalJustification = stringToHex(justification);
+    const txHash = await client.writeContract({
+      address: HAKI_ADDRESS,
+      abi: HAKI_ABI,
+      functionName: "submitMarketResult",
+      args: [
+        node, // bytes32 node
+        winningLabel, // string calldata option
+        stateRoot, // bytes32 stateRoot
+        finalJustification, // bytes calldata justification
+      ],
+    });
 
-      console.log(`Submitting result for node: ${node}`);
-      console.log(`Winner: ${winningLabel}, Root: ${stateRoot}`);
-
-      const txHash = await client.writeContract({
-        address: HAKI_ADDRESS,
-        abi: HAKI_ABI,
-        functionName: "submitMarketResult",
-        args: [
-          node, // bytes32 node
-          winningLabel, // string calldata option
-          stateRoot, // bytes32 stateRoot
-          justification, // bytes calldata justification
-        ],
-      });
-
-      console.log("Transaction sent:", txHash);
-
+    console.log("Transaction sent:", txHash);
 
     // --------------------------------------------------
     // 7️⃣ Response
@@ -145,7 +162,6 @@ export async function POST(req: NextRequest) {
       marketId,
       resolutionType: "oracle",
       winningOptionLabel: winningLabel,
-      probabilities,
       stateRoot,
     });
   } catch (err: any) {
