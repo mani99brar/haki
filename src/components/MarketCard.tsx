@@ -92,7 +92,15 @@ export default function MarketCard({ marketLabel }: MarketCardProps) {
       <div className="card-header">
         <div className="market-label-chip">
           <span className="label-dot">●</span>
-          <span className="label-text">{marketLabel}.haki-pm.eth</span>
+          <a
+            href={`https://sepolia.app.ens.domains/${marketLabel}.haki-pm.eth`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="market-ens-link"
+          >
+            <span className="label-text">{marketLabel}.haki-pm.eth</span>
+            <span className="external-icon">↗</span>
+          </a>
         </div>
         <div className={`status-badge ${marketStatus.className}`}>
           <span className="status-pulse"></span>

@@ -23,31 +23,20 @@
   opacity: 0.5;
 }
 
-/* Resolution Type Specific Tag Styles */
-.market-tag.res-type {
-  background: rgba(167, 139, 250, 0.15);
-  color: var(--accent-purple);
-  border: 1px solid rgba(167, 139, 250, 0.3);
-  text-transform: capitalize;
+.ens-link {
+  color: inherit; /* Keeps your font-display colors */
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  display: inline-block;
 }
 
-/* Color coding by resolution type */
-.market-tag.res-type.creator {
-  background: rgba(0, 212, 170, 0.15);
-  color: var(--accent-teal);
-  border: 1px solid rgba(0, 212, 170, 0.3);
-}
-
-.market-tag.res-type.oracle {
-  background: rgba(255, 107, 74, 0.15);
+.ens-link:hover {
   color: var(--accent-coral);
-  border: 1px solid rgba(255, 107, 74, 0.3);
-}
-
-/* Hover effect to match the other tags */
-.market-tag.res-type:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(167, 139, 250, 0.2);
+  text-decoration: underline;
+  text-decoration-thickness: 4px;
+  text-underline-offset: 4px;
 }
 
 /* Resolution Card Container - Styled like your Sidebar Cards */

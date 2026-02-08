@@ -11,6 +11,30 @@
   animation: cardAppear 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.market-label-link {
+  text-decoration: none;
+  display: block; /* Ensures the whole brutalist area is clickable */
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.market-label-link:hover {
+  transform: scale(1.02);
+}
+
+.market-label-link:hover .market-label-brutal {
+  border-color: var(--accent-teal); /* Highlight the border on hover */
+  background: var(--bg-hover);
+}
+
+.market-label-link:hover .label-hash {
+  color: var(--accent-teal);
+}
+
+/* Ensure the text inside doesn't change color like a default link */
+.market-label-brutal {
+  color: var(--text-primary);
+  /* Add your existing brutalist styles here if they aren't inherited */
+}
 @keyframes cardAppear {
   from {
     opacity: 0;

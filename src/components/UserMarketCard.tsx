@@ -93,11 +93,18 @@ export default function UserMarketCard({
       </div>
 
       {/* Market Label */}
-      <div className="market-label-brutal">
-        <span className="label-hash">#</span>
-        {marketLabel}
-        <span className="label-domain">.haki-pm.eth</span>
-      </div>
+      <a
+        href={`https://sepolia.app.ens.domains/${marketLabel}.haki-pm.eth`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="market-label-link"
+      >
+        <div className="market-label-brutal">
+          <span className="label-hash">#</span>
+          {marketLabel}
+          <span className="label-domain">.haki-pm.eth</span>
+        </div>
+      </a>
 
       {/* Market Description */}
       <div className="market-description-brutal">
