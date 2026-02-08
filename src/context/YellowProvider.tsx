@@ -75,7 +75,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
   // Wallet Hooks
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
-  const { open } = useAppKit();
 
   const addLog = (msg: string) => setLogs((prev) => [...prev, msg]);
 
@@ -312,15 +311,13 @@ export function YellowProvider({ children }: { children: ReactNode }) {
   const connect = useCallback(async () => {
     // 1. If Wallet NOT Connected: Open Modal
     if (!isConnected || !address || !walletClient) {
-      addLog("⚠️ Wallet required. Opening modal...");
       setPendingYellowConnection(true); // Flag to retry later
-      await open();
       return;
     }
 
     // 2. If Wallet IS Connected: Start Engine
     await executeYellowConnection();
-  }, [isConnected, address, walletClient, open, executeYellowConnection]);
+  }, [isConnected, address, walletClient, executeYellowConnection]);
 
   /**
    * Triggers the EIP-712 signature request to authorize the L3 session.

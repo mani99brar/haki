@@ -39,7 +39,7 @@ contract Haki {
 
     // --- Events ---
     event MarketCreated(bytes32 indexed node, address indexed creator, string label);
-    event ResultSubmitted(bytes32 indexed node, string option, bytes32 stateRoot);
+    event ResultSubmitted(bytes32 indexed node, string option, bytes32 stateRoot, bytes justification);
     event MarketChallenged(bytes32 indexed node, address indexed challenger);
     event MarketResolved(bytes32 indexed node, string winner, bool wasChallenged);
 
@@ -96,9 +96,11 @@ contract Haki {
     /**
      * @notice Step 2: Submit initial result (Starts Challenge Period)
      */
-    function submitMarketResult(bytes32 node, string calldata option, bytes32 stateRoot) external {
-        require(msg.sender == marketResolver, "Only marketResolver");
+    function submitMarketResult(bytes32 node, string calldata option, bytes32 stateRoot, bytes calldata justification) external {
+        address requiredResolver = marketResolver;
         Market storage market = markets[node];
+        if(keccak256(abi.encodePacked(market.resolution)) == keccak256(abi.encodePacked("creator"))) requiredResolver = market.creator;
+        require(msg.sender == requiredResolver, "Only required resolver can submit");
         require(market.creator != address(0), "Market doesn't exist");
         require(!market.resolved, "Already resolved");
         require(market.expiry < block.timestamp, "Market still active");
@@ -109,7 +111,7 @@ contract Haki {
         market.resultTimestamp = block.timestamp;
         market.stateRoot = stateRoot;
 
-        emit ResultSubmitted(node, option, stateRoot);
+        emit ResultSubmitted(node, option, stateRoot, justification);
     }
 
     /**

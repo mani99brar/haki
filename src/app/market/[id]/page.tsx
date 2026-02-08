@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { useHakiContract } from "@/hooks/useHakiContract";
 import { useYellowTrade } from "@/hooks/yellow/useYellowTrade";
 import { useMarketData } from "@/hooks/useMarketTradePreview";
+import { useNotification } from "@/context/NotificationContext";
 
 interface MarketOption {
   id: string;
@@ -26,19 +27,54 @@ export default function MarketPage() {
   const router = useRouter();
   const [betAmounts, setBetAmounts] = useState<{ [key: string]: string }>({});
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
-  const { placeBet, isTrading, sellShares } = useYellowTrade();
+  const { placeBet, isTrading, sellShares, message, error } = useYellowTrade();
   const currentAmount = parseFloat(betAmounts[selectedOutcome || ""] || "0");
   const state = useMarketData(id, selectedOutcome, currentAmount);
+  const { showNotification } = useNotification();
+  const [winningOptionId, setWinningOptionId] = useState<string>("");
+  const [justification, setJustification] = useState<string>("");
+  const { resolveCreatorMarket } = useHakiContract();
 
   useEffect(() => {
-    console.log("PREVIEW STATE");
-    console.log(selectedOutcome);
-    console.log(selectedOutcome ? Number(betAmounts[selectedOutcome]) : "NOPE");
-  }, [selectedOutcome, betAmounts]);
-  console.log("MARKET STATE", state);
+    if (!isTrading) {
+      if (error !== "") {
+        showNotification(error, "error");
+      }
+      if (message !== "") {
+        showNotification(message, "success");
+        // Give the DB a moment to breathe before fetching
+        setTimeout(() => {
+          state.refresh();
+        }, 800);
+      }
+    }
+  }, [isTrading, message, error]);
+
 
   const handleBetAmountChange = (outcomeId: string, value: string) => {
     setBetAmounts({ ...betAmounts, [outcomeId]: value });
+    if (selectedOutcome !== outcomeId) {
+      setSelectedOutcome(outcomeId);
+    }
+  };
+  const handleResolve = async () => {
+    if (!winningOptionId) {
+      showNotification("Please select a winning outcome", "error");
+      return;
+    }
+
+    try {
+      // Call the contract resolution logic
+      await resolveCreatorMarket(
+        state?.marketId!,
+        winningOptionId,
+        id,
+        justification,
+      );
+      showNotification("Market resolution submitted!", "success");
+    } catch (err) {
+      showNotification("Resolution failed", "error");
+    }
   };
 
   const { market, isLoading } = useHakiContract(id);
@@ -57,23 +93,16 @@ export default function MarketPage() {
     return { label: "Open", className: "open" };
   }, [market, isExpired]);
 
+
   // Generate market options from real data
   const marketOptions: MarketOption[] = useMemo(() => {
     if (!state.options || state.options.length === 0) return [];
-
-    // Calculate total liquidity to derive probabilities
-    const totalLiquidity = state.options.reduce(
-      (sum, opt) => sum + (opt.shares || 0),
-      0,
-    );
 
     return state.options.map((option, index) => {
       // 1. Find the user's position for this specific option UUID
       const userPos = state.userPositions?.find(
         (p) => p.option_id === option.option_id,
       );
-      console.log("userPos", userPos);
-      console.log("statePos", state.userPositions);
 
       return {
         id: index.toString(),
@@ -87,7 +116,9 @@ export default function MarketPage() {
         userShares: userPos ? userPos.shares : 0,
       };
     });
-  }, [state.userPositions]);
+  }, [state.options, state.userPositions]);
+  console.log("mareketOPtions", marketOptions);
+
 
   // Calculate time remaining
   const timeRemaining = useMemo(() => {
@@ -191,6 +222,15 @@ export default function MarketPage() {
               <div
                 style={{ display: "flex", gap: "12px", alignItems: "center" }}
               >
+                {/* NEW: Resolution Type Badge */}
+                <span
+                  className={`market-tag res-type ${market?.resolutionType?.toLowerCase()}`}
+                >
+                  {market?.resolutionType?.toLowerCase() === "creator"
+                    ? "👤"
+                    : "🤖"}
+                  Resolution: {market?.resolutionType || "Standard"}
+                </span>
                 <div
                   style={{
                     padding: "8px 16px",
@@ -247,11 +287,60 @@ export default function MarketPage() {
             </div>
           </div>
         </div>
+        {/* Resolution Card - Only visible when resolving is needed */}
 
         {/* Main Grid */}
         <div className="market-grid">
           {/* Left Column - Betting Interface */}
           <div className="market-main">
+            {!market.resolved && isExpired && (
+              <div className="sidebar-card resolution-card">
+                <h3 className="sidebar-card-title">Resolve Market</h3>
+                <p className="form-hint" style={{ marginBottom: "16px" }}>
+                  Select the final outcome and provide a justification for the
+                  chain.
+                </p>
+
+                <div className="form-group">
+                  <label className="form-label">Winning Option</label>
+                  <select
+                    className="form-input"
+                    style={{ width: "100%", cursor: "pointer" }}
+                    value={winningOptionId}
+                    onChange={(e) => setWinningOptionId(e.target.value)}
+                  >
+                    <option value="">Select Outcome...</option>
+                    {marketOptions.map((opt) => (
+                      <option key={opt.label} value={opt.label}>
+                        {opt.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ marginTop: "16px" }}>
+                  <label className="form-label">Justification</label>
+                  <textarea
+                    className="form-textarea"
+                    placeholder="Source of truth URL or reasoning..."
+                    rows={3}
+                    value={justification}
+                    onChange={(e) => setJustification(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  className="submit-btn"
+                  style={{ marginTop: "16px", width: "100%" }}
+                  onClick={handleResolve}
+                  disabled={
+                    isLoading /* Disable until resolution logic is implemented */
+                  }
+                >
+                  {isLoading ? "Resolving..." : "Confirm Resolution →"}
+                </button>
+              </div>
+            )}
             {/* Market Info Card */}
             <div className="info-card">
               <h3 className="info-card-title">Market Details</h3>
@@ -273,15 +362,15 @@ export default function MarketPage() {
                     {marketOptions.length}
                   </div>
                 </div>
-                {/* <div className="market-stat">
-                  <div className="market-stat-label">Your Shares</div>
+                <div className="market-stat">
+                  <div className="market-stat-label">Liquidity Factor</div>
                   <div className="market-stat-value position">
                     {marketOptions.reduce(
                       (sum, opt) => sum + opt.userShares,
                       0,
                     )}
                   </div>
-                </div> */}
+                </div>
               </div>
             </div>
 
@@ -516,7 +605,7 @@ export default function MarketPage() {
                               Buy Shares
                             </button>
 
-                            {option.shares > 0 && (
+                            {option.userShares > 0 && (
                               <button
                                 className="place-bet-btn sell"
                                 onClick={(e) => {

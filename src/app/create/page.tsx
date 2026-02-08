@@ -5,6 +5,7 @@ import Navigation from "@/components/Navigation";
 import "./create.css";
 import { useHakiContract } from "@/hooks/useHakiContract";
 import { useRouter } from "next/navigation";
+import { useNotification } from "@/context/NotificationContext";
 
 interface Option {
   id: string;
@@ -28,13 +29,15 @@ export default function CreatePage() {
   ]);
   const [showPreview, setShowPreview] = useState(true);
   const { createMarket, isLoading, isSuccess } = useHakiContract();
+  const { showNotification } = useNotification();
 
   useEffect(() => {
     if (isSuccess && label) {
+      showNotification("Market created successfully!", "success");
       // Small timeout can help ensure the DB sync starts before navigation
       const timer = setTimeout(() => {
         router.push(`/market/${label}`);
-      }, 1500); // 1.5s delay to show a success state or allow DB sync
+      }, 2000); // 2s delay to show a success state or allow DB sync
 
       return () => clearTimeout(timer);
     }
@@ -89,24 +92,6 @@ export default function CreatePage() {
         Number(liquidityB),
         resolutionStrategy,
       );
-
-      const response = await fetch("/api/market/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          {
-            wallet: "0xtest",
-            label,
-            description,
-            options: formattedOptions,
-            b: liquidityB, // This is a BigInt
-            resolution_type: resolutionStrategy,
-          },
-          (key, value) =>
-            // This 'replacer' function handles the BigInt conversion
-            typeof value === "bigint" ? value.toString() : value,
-        ),
-      });
     } catch (error) {
       console.error("Failed to create market:", error);
     }

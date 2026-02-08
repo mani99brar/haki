@@ -23,6 +23,132 @@
   opacity: 0.5;
 }
 
+/* Resolution Type Specific Tag Styles */
+.market-tag.res-type {
+  background: rgba(167, 139, 250, 0.15);
+  color: var(--accent-purple);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  text-transform: capitalize;
+}
+
+/* Color coding by resolution type */
+.market-tag.res-type.creator {
+  background: rgba(0, 212, 170, 0.15);
+  color: var(--accent-teal);
+  border: 1px solid rgba(0, 212, 170, 0.3);
+}
+
+.market-tag.res-type.oracle {
+  background: rgba(255, 107, 74, 0.15);
+  color: var(--accent-coral);
+  border: 1px solid rgba(255, 107, 74, 0.3);
+}
+
+/* Hover effect to match the other tags */
+.market-tag.res-type:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(167, 139, 250, 0.2);
+}
+
+/* Resolution Card Container - Styled like your Sidebar Cards */
+.resolution-card {
+  height: fit-content;
+  margin-bottom: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 24px;
+  animation: cardSlideRight 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+/* Form Grouping */
+.resolution-card .form-group {
+  margin-bottom: 20px;
+}
+
+.resolution-card .form-label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Inputs & Textarea - Matching the .bet-input style */
+.resolution-card .form-input,
+.resolution-card .form-textarea {
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--bg-primary);
+  border: 2px solid var(--border-subtle);
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.resolution-card .form-input:focus,
+.resolution-card .form-textarea:focus {
+  border-color: var(--accent-coral);
+  box-shadow: 0 0 0 4px rgba(255, 107, 74, 0.1);
+  background: var(--bg-card);
+}
+
+/* Custom Dropdown Styling */
+.resolution-card select.form-input {
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 44px;
+}
+
+/* Resolution Button - Using your .place-bet-btn.buy gradient logic */
+.resolution-card .submit-btn {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--accent-coral), var(--accent-teal));
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(255, 107, 74, 0.3);
+}
+
+.resolution-card .submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(255, 107, 74, 0.5);
+}
+
+.resolution-card .submit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(1);
+  box-shadow: none;
+}
+
+/* Hint Text */
+.resolution-card .form-hint {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+  margin-top: -8px;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

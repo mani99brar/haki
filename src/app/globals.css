@@ -557,6 +557,59 @@ body {
   gap: 4px;
 }
 
+.notification-stack {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.haki-notification {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  min-width: 300px;
+  background: white;
+  border: 3px solid black; /* Heavy border */
+  box-shadow: 6px 6px 0px black; /* Hard shadow */
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-weight: 700;
+  position: relative;
+}
+
+/* Color Themes */
+.haki-notification.success { background: #00ffaa; } /* Neon Green/Teal */
+.haki-notification.error { background: #ff5555; }   /* Punchy Red */
+.haki-notification.info { background: #55aaff; }    /* Bright Blue */
+
+.notification-icon {
+  font-size: 20px;
+}
+
+.notification-message {
+  color: black;
+  flex: 1;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.notification-close:hover {
+  transform: scale(1.2);
+}
+
 .action-btn {
   display: flex;
   align-items: center;

@@ -3,8 +3,8 @@ import { supabase } from "@/lib/supabase";
 
 type CreateOptionsBody = {
   wallet: string;
-  label: string;
-  description: string;
+  marketLabel: string;
+  marketDescription: string;
   options: string; // ordered labels
   b: number;
   resolution_type: string;
@@ -13,15 +13,16 @@ type CreateOptionsBody = {
 export async function POST(req: NextRequest) {
   const {
     wallet,
-    label,
-    description,
+    marketLabel,
+    marketDescription,
     options,
     b,
     resolution_type,
   }: CreateOptionsBody = await req.json();
-  if (!wallet || !label) {
+  if (!wallet || !marketLabel) {
+    console.log("Missing required fields", { wallet, marketLabel });
     return NextResponse.json(
-      { error: "wallet and question required" },
+      { error: "wallet and marketLabel required" },
       { status: 400 },
     );
   }
@@ -29,15 +30,14 @@ export async function POST(req: NextRequest) {
     .from("markets")
     .insert({
       creator_wallet: wallet,
-      question: label,
-      description: description,
+      question: marketLabel,
+      description: marketDescription,
       status: "open",
       b: b,
       resolution_type: resolution_type,
     })
     .select()
     .single();
-  console.log(data, error);
 
   if (error) {
     console.log(error);

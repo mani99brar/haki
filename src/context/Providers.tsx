@@ -4,6 +4,7 @@ import React, { ReactNode } from "react";
 import { YellowProvider } from "@/context/YellowProvider";
 import ContextProvider from "@/context"; // Your Reown/AppKit provider
 import YellowConnectionManager from "@/components/YellowConnectionManager";
+import { NotificationProvider } from "./NotificationContext";
 
 interface ProvidersProps {
   children: ReactNode;
@@ -18,7 +19,7 @@ export function Providers({ children, cookies }: ProvidersProps) {
     <ContextProvider cookies={cookies}>
       <YellowProvider>
         <YellowConnectionManager />
-        {children}
+        <NotificationProvider>{children}</NotificationProvider>
       </YellowProvider>
     </ContextProvider>
   );

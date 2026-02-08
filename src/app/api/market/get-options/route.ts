@@ -14,10 +14,11 @@ export async function POST(req: NextRequest) {
   // 1. Resolve the label to the UUID marketId
   const { data: market, error: labelError } = await supabase
     .from("markets")
-    .select("id")
+    .select("*")
     .eq("question", marketLabel) // Adjust this column name if your label is stored elsewhere
     .single();
-  console.log(labelError);
+  
+  console.log(market);
   const { data, error } = await supabase.rpc("get_market_options", {
     p_market: market?.id,
   });
@@ -35,6 +36,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     marketId: market?.id,
+    b: market?.b,
+    resolution_type: market?.resolution_type,
     options: data,
     volume: volumeData,
   });

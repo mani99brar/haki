@@ -3,7 +3,7 @@ import {
   useWaitForTransactionReceipt,
   useReadContracts,
 } from "wagmi";
-import { keccak256, encodePacked, namehash } from "viem";
+import { keccak256, encodePacked, namehash, Hex, stringToHex } from "viem";
 import { HAKI_ABI } from "../utils/abis/Haki";
 import { PUBLIC_RESOLVER_ABI } from "../utils/abis/PublicResolver";
 import { HAKI_ADDRESS } from "@/utils/consts";
@@ -104,7 +104,47 @@ export function useHakiContract(label?: string) {
     });
   };
 
-  
+  const resolveCreatorMarket = async (
+    marketId: string,
+    optionLabel: string,
+    marketLabel: string,
+    justification: string,
+  ) => {
+    // Hash the label (e.g., "bitcoin-2026")
+    const labelHash = keccak256(encodePacked(["string"], [marketLabel]));
+
+    // Combine parent node and label hash
+    const marketNode = keccak256(
+      encodePacked(["bytes32", "bytes32"], [PARENT_NODE, labelHash]),
+    );
+    console.log("Generated market node:", marketNode);
+    const response = await fetch("/api/merkleroot/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        marketId: marketId,
+        optionLabel: optionLabel,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok)
+      throw new Error(data.error || "Failed to generate state root");
+
+    const stateRoot = data.merkleRoot as Hex;
+    const convertedJustification = stringToHex(justification);
+    console.log("Submitting market result with", {
+      marketNode,
+      optionLabel,
+      stateRoot,
+      convertedJustification,
+    });
+    writeContract({
+      address: HAKI_ADDRESS,
+      abi: HAKI_ABI,
+      functionName: "submitMarketResult",
+      args: [marketNode, optionLabel, stateRoot, convertedJustification],
+    });
+  };
 
   const syncMarketToDb = useCallback(async () => {
     if (!isSuccess || !variables) return;
@@ -114,9 +154,10 @@ export function useHakiContract(label?: string) {
       marketLabel,
       marketDescription,
       marketOptions,
+      expiry,
       liquidityB,
       resolutionStrategy,
-    ] = variables.args as [string, string, string, bigint, string];
+    ] = variables.args as [string, string, string, bigint, bigint, string];
 
     try {
       const response = await fetch("/api/market/create", {
@@ -128,6 +169,7 @@ export function useHakiContract(label?: string) {
             marketLabel,
             marketDescription,
             options: marketOptions,
+            expiry: Number(expiry),
             b: liquidityB, // This is a BigInt
             resolution_type: resolutionStrategy,
           },
@@ -161,6 +203,7 @@ export function useHakiContract(label?: string) {
         expiry: Number(marketMapping[6]),
         description: description || "",
         options: options ? options.split(",") : [], // Convert comma string back to Array
+        resolutionType: marketMapping[8],
       }
     : null;
 
@@ -174,5 +217,6 @@ export function useHakiContract(label?: string) {
     error: writeError || confirmError,
     hash,
     syncMarketToDb,
+    resolveCreatorMarket,
   };
 }

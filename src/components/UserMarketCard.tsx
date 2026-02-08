@@ -127,32 +127,6 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
         )}
       </div>
 
-      {/* Balance & Withdraw Section */}
-      {/* Balance & Withdraw Section */}
-      <div className="balance-section-brutal">
-        <div className="balance-display-brutal">
-          <div className="balance-label-brutal">YOUR BALANCE</div>
-          <div className="balance-value-brutal">
-            <span className="balance-currency">$</span>
-            <span className="balance-amount">{userBalance.toFixed(2)}</span>
-          </div>
-        </div>
-
-        {canWithdraw && (
-          /* WRAP THE BUTTON HERE */
-          <div onClick={(e) => e.stopPropagation()}>
-            <WithdrawButton marketTitle={marketLabel} />
-          </div>
-        )}
-
-        {!canWithdraw && userBalance > 0 && (
-          <div className="withdraw-locked-brutal">
-            <span className="lock-icon">🔒</span>
-            LOCKED UNTIL RESOLVED
-          </div>
-        )}
-      </div>
-
       {/* View Market CTA */}
       <div className="view-market-cta-brutal">
         <span>VIEW MARKET</span>

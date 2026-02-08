@@ -13,7 +13,6 @@ export default function Home() {
   const { marketLabels, isLoading, nextPage, prevPage, isAtEnd, currentRange } =
     useAllMarkets();
   const { isConnected } = useAppKitAccount();
-  
 
   const canGoPrev = currentRange.from > BigInt(10204130); // DEPLOY_BLOCK
 
@@ -60,13 +59,13 @@ export default function Home() {
               </div>
               <div className="stat-divider"></div>
               <div className="stat-item">
-                <div className="stat-value">24/7</div>
-                <div className="stat-label">Trading</div>
+                <div className="stat-value">Instant</div>
+                <div className="stat-label">Trades</div>
               </div>
               <div className="stat-divider"></div>
               <div className="stat-item">
-                <div className="stat-value">100%</div>
-                <div className="stat-label">On-Chain</div>
+                <div className="stat-value">Trust</div>
+                <div className="stat-label">Minimised</div>
               </div>
             </div>
           </div>

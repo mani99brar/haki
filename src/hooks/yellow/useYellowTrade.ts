@@ -13,6 +13,8 @@ export function useYellowTrade() {
   const { sessionSigner, sendMessage, status, activeChannelId } = useYellow();
   const { address: walletAddress } = useAccount();
   const [isTrading, setIsTrading] = useState(false);
+  const [message, setMessage] = useState<string>("");
+  const [error, setError] = useState<string>("");
 
   const placeBet = async (
     amount: string,
@@ -20,7 +22,10 @@ export function useYellowTrade() {
     optionId: string, // UUID from Supabase
     shares: number, // Number of shares from your preview hook
   ) => {
+    setMessage("");
+    setError("");
     if (status === "disconnected" || !sessionSigner || !walletAddress) {
+      setError("Please connect your wallet and Yellow session first.");
       console.warn("⚠️ Session or Wallet not ready.");
       return;
     }
@@ -68,9 +73,7 @@ export function useYellowTrade() {
           shares,
           signedPayload,
           signature,
-          channelId: activeChannelId
-            ? activeChannelId
-            : "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          channelId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
           wallet: walletAddress,
         }),
       });
@@ -80,13 +83,13 @@ export function useYellowTrade() {
       if (!dbResponse.ok) {
         throw new Error(dbData.error || "DB Trade execution failed");
       }
-
-      console.log("✅ Trade Executed Successfully:", dbData.trade);
       return dbData.trade;
     } catch (error) {
+      setMessage("Trade failed. Please try again.");
       console.error("❌ Haki Trade Error:", error);
-      throw error;
+      setError(error instanceof Error ? error.message : "Unknown error");
     } finally {
+      setMessage("Share bought successfully!");
       setIsTrading(false);
     }
   };
@@ -97,7 +100,13 @@ export function useYellowTrade() {
     optionId: string,
     sharesToSell: number,
   ) => {
-    if (status === "disconnected") return;
+    setMessage("");
+    setError("");
+    if (status === "disconnected" || !sessionSigner || !walletAddress) {
+      setError("Please connect your wallet and Yellow session first.");
+      console.warn("⚠️ Session or Wallet not ready.");
+      return;
+    }
     setIsTrading(true);
     const sessionKey = localStorage.getItem("yellow_session_sk");
     if (!sessionKey) throw new Error("Missing session key");
@@ -126,10 +135,13 @@ export function useYellowTrade() {
       });
 
       return await response.json();
+    }catch(err) {
+      setError("Failed to execute sell shares");
     } finally {
+      setMessage("Share sold successfully!");
       setIsTrading(false);
     }
   };
 
-  return { placeBet, sellShares, isTrading };
+  return { placeBet, sellShares, isTrading, message, error };
 }

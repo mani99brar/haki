@@ -17,6 +17,8 @@ interface UserPosition {
 
 interface MarketState {
   marketId: string | null;
+  b: number | null;
+  resolution_type: string | null;
   options: MarketOption[];
   userPositions: UserPosition[]; // Added user positions
   preview: {
@@ -41,6 +43,8 @@ export function useMarketData(
 
   const [state, setState] = useState<MarketState>({
     marketId: null,
+    b: null,
+    resolution_type: null,
     options: [],
     userPositions: [],
     preview: { cost: null, avgPrice: null },
@@ -62,6 +66,7 @@ export function useMarketData(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ marketLabel }),
+        cache: "no-store",
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
@@ -72,7 +77,9 @@ export function useMarketData(
       setState((prev) => ({
         ...prev,
         marketId: data.marketId,
-        options: data.options,
+        b: data.b,
+        resolution_type: data.resolution_type,
+        options: [...data.options], // 🔥 Force new array reference for React re-render
         isOptionsLoading: false,
         volume: data.volume,
       }));
@@ -95,13 +102,14 @@ export function useMarketData(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wallet, marketId: resolvedMarketId }),
+        cache: "no-store",
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
 
       setState((prev) => ({
         ...prev,
-        userPositions: data.positions,
+        userPositions: [...data.positions], // 🔥 Force new array reference
         isUserLoading: false,
       }));
     } catch (err: any) {
@@ -165,5 +173,10 @@ export function useMarketData(
     fetchPreview();
   }, [fetchPreview]);
 
-  return state;
+  const refresh = useCallback(async () => {
+    // Run both fetches in parallel
+    await Promise.all([fetchMarketInfo(), fetchUserPositions()]);
+  }, [fetchMarketInfo, fetchUserPositions]);
+
+  return { ...state, refresh };
 }
