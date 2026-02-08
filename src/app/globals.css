@@ -1176,3 +1176,55 @@ body {
     font-size: 11px;
   }
 }
+
+/* Brutalist Connect Button */
+.connect-btn-brutal {
+  background: var(--accent-teal, #00d4aa); /* Default Haki teal */
+  color: #000;
+  border: 3px solid #000;
+  padding: 10px 24px;
+  font-family: 'Courier New', monospace; /* Keep technical font */
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  box-shadow: 4px 4px 0px #000; /* Hard shadow */
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Hover State: Shift content slightly */
+.connect-btn-brutal:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px #000; /* Deeper shadow */
+  background: #00eec0; /* Slightly brighter teal */
+}
+
+/* Active/Click State: Press down */
+.connect-btn-brutal:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px #000; /* Flatten shadow */
+}
+
+/* Icon Animation */
+.connect-icon {
+  font-size: 16px;
+  transition: transform 0.2s ease;
+}
+
+.connect-btn-brutal:hover .connect-icon {
+  transform: scale(1.2) rotate(-10deg);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 640px) {
+  .connect-btn-brutal {
+    padding: 8px 16px;
+    font-size: 12px;
+  }
+}

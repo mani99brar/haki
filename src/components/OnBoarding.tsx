@@ -3,36 +3,35 @@
 import React, { useState, useEffect, useMemo } from "react";
 import TransactionModal, { TransactionStep } from "./TransactionModal";
 import { useYellow } from "@/context/YellowProvider";
-import { requestFaucetTokens } from "@/utils/yellowFaucet";
+import { requestFaucetTokens } from "@/utils/yellowFaucet"; // Ensure this path is correct
 import { useAccount } from "wagmi";
 
 export default function OnboardingManager() {
-  const { status, activeChannelId, requestSignature, jwt, connect } =
-    useYellow();
-
+  // 1. UPDATED DESTRUCTURING: use 'signSession' instead of 'requestSignature'
+  const { status, jwt, connect, signSession } = useYellow();
   const { address } = useAccount();
 
   const [isOpen, setIsOpen] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isFaucetLoading, setIsFaucetLoading] = useState(false);
 
-  // 1. Initial Connection
+  // 2. Trigger Onboarding if not onboarded
+  useEffect(() => {
+    const hasSeen = localStorage.getItem("haki_onboarded");
+    // Show if user connected wallet but hasn't finished Haki setup
+    if (address && !hasSeen && !isOpen) {
+      setIsOpen(true);
+    }
+  }, [address, isOpen]);
+
+  // 3. Auto-Connect when Modal Opens
   useEffect(() => {
     if (isOpen && status === "disconnected") {
       connect();
     }
   }, [isOpen, status, connect]);
 
-  // 2. Initial Modal Trigger
-  useEffect(() => {
-    const hasSeenOnboarding = localStorage.getItem("haki_onboarded");
-    // If no active channel and hasn't seen onboarding, show it
-    if (!activeChannelId && !hasSeenOnboarding && !isOpen) {
-      setIsOpen(true);
-    }
-  }, [activeChannelId, isOpen]);
-
-  // 3. Automation: Auto-advance from Auth to Faucet
+  // 4. Auto-Advance Step 1 -> Step 2 (Once JWT exists)
   useEffect(() => {
     if (jwt && currentStepIndex === 0) {
       setCurrentStepIndex(1);
@@ -45,16 +44,27 @@ export default function OnboardingManager() {
         id: "auth-session",
         title: "Authorize Session",
         description: jwt
-          ? "Session Key validated."
-          : "Sign to authorize your L3 session.",
+          ? "Session Validated."
+          : status === "connecting"
+            ? "Connecting to Yellow Network..."
+            : "Sign to authorize your L3 session.",
         status: jwt
           ? "success"
-          : status === "waiting-signature"
+          : status === "waiting-signature" || status === "connecting"
             ? "active"
             : "pending",
         action: {
-          label: jwt ? "AUTHORIZED" : "AUTHORIZE",
-          onClick: async () => await requestSignature(),
+          // Logic: If we have JWT, we are done. If waiting, user must click.
+          label: jwt
+            ? "AUTHORIZED"
+            : status === "connecting"
+              ? "CONNECTING..."
+              : "AUTHORIZE",
+          disabled: status === "connecting" || !!jwt, // Disable if busy or done
+          onClick: async () => {
+            // 5. Use the new function name
+            await signSession();
+          },
         },
       },
       {
@@ -75,16 +85,18 @@ export default function OnboardingManager() {
             if (!address) return;
             setIsFaucetLoading(true);
             try {
+              // Assuming requestFaucetTokens is your utility
               await requestFaucetTokens(address);
-              // Wait a beat for the faucet to actually process
+
+              // Artificial delay for UX "feeling"
               setTimeout(() => {
                 setIsFaucetLoading(false);
-                setCurrentStepIndex(2); // Move to final step
+                setCurrentStepIndex(2);
               }, 2000);
             } catch (e) {
               console.error("Faucet error", e);
               setIsFaucetLoading(false);
-              // We move forward anyway so the user isn't stuck if they already have tokens
+              // Advance anyway to not block user
               setCurrentStepIndex(2);
             }
           },
@@ -104,8 +116,11 @@ export default function OnboardingManager() {
         },
       },
     ],
-    [jwt, status, address, currentStepIndex, requestSignature, isFaucetLoading],
+    [jwt, status, address, currentStepIndex, signSession, isFaucetLoading],
   );
+
+  // If wallet isn't connected, don't show anything (or show a "Connect Wallet" prompt)
+  if (!address) return null;
 
   return (
     <TransactionModal
@@ -114,7 +129,7 @@ export default function OnboardingManager() {
       title="HAKI CLEARING SETUP"
       steps={steps}
       currentStepIndex={currentStepIndex}
-      disableBackdropClose={true}
+      disableBackdropClose={true} // Force them to finish
     />
   );
 }

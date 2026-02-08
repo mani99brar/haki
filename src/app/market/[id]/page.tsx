@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import './market.css';
@@ -22,6 +22,8 @@ interface MarketOption {
 }
 
 export default function MarketPage() {
+  const lastNotifiedMessage = useRef("");
+  const lastNotifiedError = useRef("");
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
@@ -36,13 +38,29 @@ export default function MarketPage() {
   const { resolveCreatorMarket } = useHakiContract();
 
   useEffect(() => {
-    if (!isTrading) {
-      if (error !== "") {
+    // RESET both refs when a new trade starts
+    if (isTrading) {
+      lastNotifiedMessage.current = "";
+      lastNotifiedError.current = "";
+      return;
+    }
+
+    // Handle Errors (Now Protected)
+    if (error && error !== "") {
+      // Only trigger if we haven't shown THIS specific error yet
+      if (error !== lastNotifiedError.current) {
         showNotification(error, "error");
+        lastNotifiedError.current = error; // Mark as seen
       }
-      if (message !== "") {
+    }
+
+    // Handle Success
+    if (message && message !== "") {
+      if (message !== lastNotifiedMessage.current) {
         showNotification(message, "success");
-        // Give the DB a moment to breathe before fetching
+        lastNotifiedMessage.current = message; // Mark as seen
+
+        // Refresh data
         setTimeout(() => {
           state.refresh();
         }, 800);
