@@ -34,8 +34,8 @@ export default function Home() {
               <span className="gradient-text"> Future</span>
             </h1>
             <p className="hero-subtitle">
-              "Haki is a power that lies within all the world's creatures. To
-              'not doubt'. That is great strength!" — Silvers Rayleigh
+              Haki is a power that lies within all the world's creatures. To
+              'not doubt'. That is great strength!
             </p>
             <div className="hero-actions">
               <button

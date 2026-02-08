@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
       trade: data?.[0],
     });
   } catch (err) {
+    console.error("❌ API CRASH:", err);
     return NextResponse.json(
       { error: "Invalid request body" },
       { status: 400 },

@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import TransactionModal, { TransactionStep } from "./TransactionModal";
 import { useYellow } from "@/context/YellowProvider";
-import { useYellowChannel } from "@/hooks/yellow/useYellowChannel";
 import { requestFaucetTokens } from "@/utils/yellowFaucet";
 import { useAccount } from "wagmi";
 

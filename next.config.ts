@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   webpack: config => {
     config.externals.push('pino-pretty', 'lokijs', 'encoding', 'porto')
+    config.ignoreWarnings = [{ module: /contracts/ }, { module: /supabase/ }];
     return config
   }
 };

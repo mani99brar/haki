@@ -1,13 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import Navigation from '@/components/Navigation';
 import UserMarketCard from "@/components/UserMarketCard";
-import './profile.css';
-import { useYellow } from "@/context/YellowProvider";
+import "./profile.css";
 import { useAppKitAccount } from "@reown/appkit/react";
-import { useEnsName } from "wagmi";
-import { sepolia } from "viem/chains";
 import { Address } from "viem";
 import { useAllMarkets } from "@/hooks/useAllMarkets";
 import { useYellowActions } from "@/hooks/yellow/useYellowActions";

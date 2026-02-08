@@ -1,14 +1,6 @@
 // /hooks/useSessionKeyAuth.ts
 import { useState } from "react";
-import {
-  createWalletClient,
-  createPublicClient,
-  custom,
-  Address,
-  getAddress,
-  http,
-  verifyTypedData,
-} from "viem";
+import { createWalletClient, custom, getAddress, verifyTypedData } from "viem";
 import { sepolia } from "viem/chains";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
@@ -31,11 +23,6 @@ export function useSessionKeyAuth() {
         transport: custom((window as any).ethereum),
       });
 
-      // 2b. Public client for verification
-      const publicClient = createPublicClient({
-        chain: sepolia,
-        transport: http(),
-      });
 
       // 3. Use checksum addresses (CRITICAL)
       const checksumUserAddress = getAddress(userAddress);

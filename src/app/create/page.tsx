@@ -27,7 +27,6 @@ export default function CreatePage() {
     { id: "1", text: "" },
     { id: "2", text: "" },
   ]);
-  const [showPreview, setShowPreview] = useState(true);
   const { createMarket, isLoading, isSuccess } = useHakiContract();
   const { showNotification } = useNotification();
 
@@ -41,7 +40,7 @@ export default function CreatePage() {
 
       return () => clearTimeout(timer);
     }
-  }, [isSuccess, label, router]);
+  }, [isSuccess, label, router, showNotification]);
 
   // ... (addOption, removeOption, updateOption logic remains the same)
   const addOption = () => {

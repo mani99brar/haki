@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
           const inner = msg.res;
           if (!Array.isArray(inner)) return;
 
-          const [id, method, result] = inner;
+          const [, method, result] = inner;
 
           if (method === "auth_verify") {
             console.log("✅ auth_verify SUCCESS!");
@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
             );
           }
         } catch (err) {
+          console.error("❌ Failed to parse Yellow response:", err);
           cleanup();
           resolve(
             NextResponse.json(
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
       };
 
       ws.onerror = (err) => {
+        console.error("❌ WebSocket error:", err);
         cleanup();
         resolve(
           NextResponse.json(

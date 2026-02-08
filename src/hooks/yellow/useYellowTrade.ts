@@ -135,7 +135,8 @@ export function useYellowTrade() {
       });
 
       return await response.json();
-    }catch(err) {
+    } catch (err) {
+      console.error("❌ Sell shares failed:", err);
       setError("Failed to execute sell shares");
     } finally {
       setMessage("Share sold successfully!");

@@ -9,10 +9,9 @@ import React, {
   useCallback,
   useEffect,
 } from "react";
-import { Address, Hex } from "viem";
+import { Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { useAccount, useWalletClient, usePublicClient } from "wagmi";
-import { useAppKit } from "@reown/appkit/react";
+import { useAccount, useWalletClient } from "wagmi";
 import {
   createECDSAMessageSigner,
   createAuthRequestMessage,
@@ -24,7 +23,6 @@ import {
 } from "@erc7824/nitrolite";
 import { createWalletClient, custom, createPublicClient, http } from "viem";
 import { sepolia } from "viem/chains";
-import { ASSET_ADDRESS } from "@/utils/consts";
 
 // --- Configuration ---
 const CLEARNODE_URL = "wss://clearnet-sandbox.yellow.com/ws";
@@ -41,7 +39,6 @@ interface YellowContextType {
     | "waiting-signature";
   jwt: string | null;
   activeChannelId: string | null;
-  logs: string[];
   connect: () => Promise<void>;
   requestSignature: () => Promise<void>;
   sendMessage: (msg: string) => void;
@@ -60,7 +57,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
     useState<YellowContextType["status"]>("disconnected");
   const [jwt, setJwt] = useState<string | null>(null);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
   const [pendingYellowConnection, setPendingYellowConnection] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pendingChannelData, setPendingChannelData] = useState<any>();
@@ -76,8 +72,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
 
-  const addLog = (msg: string) => setLogs((prev) => [...prev, msg]);
-
   // --- Helper: Message Sender ---
   const sendMessage = useCallback((msg: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -90,7 +84,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
   // --- INTERNAL: Connection Engine ---
   const executeYellowConnection = useCallback(async () => {
     if (!address || !walletClient) {
-      addLog("❌ Error: Wallet not ready for connection");
       return;
     }
 
@@ -102,7 +95,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
     }
 
     setStatus("authenticating");
-    addLog("🔌 Connecting to Yellow Network...");
 
     try {
       // 1. Initialize SDK Clients
@@ -133,7 +125,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
       if (!sessionKey) {
         sessionKey = generatePrivateKey();
         localStorage.setItem(STORAGE_KEY_SK, sessionKey);
-        addLog("🔑 Created new Session Key");
       }
       const sessionAccount = privateKeyToAccount(sessionKey);
       sessionSignerRef.current = createECDSAMessageSigner(sessionKey);
@@ -143,7 +134,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
       wsRef.current = ws;
 
       ws.onopen = async () => {
-        addLog("🔐 Sending Auth Request...");
         // Define params once
         const params = {
           address: address,
@@ -161,13 +151,12 @@ export function YellowProvider({ children }: { children: ReactNode }) {
         const authMsg = await createAuthRequestMessage(params);
 
         ws.send(authMsg);
-      };;
+      };
 
       ws.onmessage = async (event) => {
         const response = JSON.parse(event.data.toString());
         console.log(response);
         if (response.error) {
-          addLog(`❌ Node Error: ${response.error.message}`);
           // If the token was invalid/expired, clear it so next attempt starts fresh
           if (response.error.code === 4001) {
             // Common 'Invalid Token' code
@@ -182,7 +171,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
 
         // --- AUTH CHALLENGE: Only triggered if JWT is missing or invalid ---
         if (type === "auth_challenge") {
-          addLog("✍️ Session expired or missing. Please sign in Wallet...");
           // FIX: Retrieve JWT from storage to resume session
           const storedJwt = localStorage.getItem(STORAGE_KEY_JWT + address);
           console.log(storedJwt);
@@ -194,9 +182,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
             } else {
               // Manual path: Save the challenge and wait
               lastChallengeRef.current = data.challenge_message;
-              addLog(
-                "⏳ Authorization required. Click the button in the modal.",
-              );
               setStatus("waiting-signature");
               // const signer = createEIP712AuthMessageSigner(
               //   vWalletClient,
@@ -218,7 +203,10 @@ export function YellowProvider({ children }: { children: ReactNode }) {
               // ws.send(verifyMsg);
             }
           } catch (e) {
-            addLog("❌ Signature rejected by user");
+            console.log(
+              "JWT verification failed, falling back to manual auth flow",
+              e,
+            );
             ws.close();
           }
         }
@@ -230,7 +218,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
             setJwt(newJwt);
             localStorage.setItem(STORAGE_KEY_JWT + data.address, newJwt);
           }
-          addLog("✅ Authenticated via Yellow!");
           setStatus("connected");
         }
 
@@ -241,7 +228,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
           setActiveChannelId(data.channels[0].channel_id);
         }
         if (type === "create_channel") {
-          addLog("🏗️ Proposal received. Ready for on-chain activation.");
           const channel = {
             participants: (data.channel.participants || []).map(
               (p: string) => p as `0x${string}`,
@@ -298,10 +284,9 @@ export function YellowProvider({ children }: { children: ReactNode }) {
       ws.onclose = () => {
         setStatus("disconnected");
         setLoading(false);
-        addLog("🔌 Disconnected from Clearnode");
       };
     } catch (error: any) {
-      addLog(`❌ Connection Failed: ${error.message}`);
+      console.error("Connection failed:", error);
       setStatus("disconnected");
       setLoading(false);
     }
@@ -325,13 +310,11 @@ export function YellowProvider({ children }: { children: ReactNode }) {
    */
   const requestSignature = useCallback(async () => {
     if (!address || !walletClient || !wsRef.current) {
-      addLog("❌ Cannot sign: Wallet or Connection not ready.");
       return;
     }
 
     try {
       setStatus("authenticating");
-      addLog("✍️ Requesting signature from wallet...");
 
       const { session_key, allowances, expires_at, scope } =
         authParamsRef.current;
@@ -352,7 +335,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
       // Usually, the Clearnode sends this in the 'auth_challenge' message.
       // We'll store it in a Ref or State when it arrives in ws.onmessage.
       if (!lastChallengeRef.current) {
-        addLog("❌ No active challenge from node. Try reconnecting.");
         return;
       }
 
@@ -363,20 +345,17 @@ export function YellowProvider({ children }: { children: ReactNode }) {
 
       // 3. Send the verification back to the Clearnode
       wsRef.current.send(verifyMsg);
-      addLog("🚀 Verification sent! Awaiting JWT...");
     } catch (error) {
       console.error("Signature failed:", error);
-      addLog("❌ Signature rejected or failed.");
       setStatus("disconnected");
       setLoading(false);
     }
-  }, [address, walletClient, addLog]);
+  }, [address, walletClient]);
 
   // --- EFFECT: Handle Pending Connection ---
   // Triggers ONLY if user clicked 'connect' previously and just finished connecting wallet
   useEffect(() => {
     if (pendingYellowConnection && isConnected && address && walletClient) {
-      addLog("🔗 Wallet connected! Resuming Yellow...");
       setPendingYellowConnection(false);
       executeYellowConnection();
     }
@@ -399,7 +378,6 @@ export function YellowProvider({ children }: { children: ReactNode }) {
         status,
         jwt,
         activeChannelId,
-        logs,
         connect,
         requestSignature,
         sendMessage,

@@ -9,7 +9,6 @@ import { Address } from "viem";
 import { ASSET_ADDRESS, YELLOW_ADJUDICATOR_ADDRESS } from "@/utils/consts";
 import { AdjudicatorAbi } from "@erc7824/nitrolite";
 import { useWriteContract } from "wagmi";
-import { useWalletClient } from "wagmi";
 
 
 export function useYellowChannel() {

@@ -1,10 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo } from "react";
 import { useHakiContract } from '@/hooks/useHakiContract';
-import { Address } from 'viem';
-import { WithdrawButton } from './WithdrawButton';
+import { Address } from "viem";
 import './UserMarketCard.css';
 
 interface UserMarketCardProps {
@@ -13,16 +11,17 @@ interface UserMarketCardProps {
   isCreator: boolean;
 }
 
-export default function UserMarketCard({ marketLabel, userAddress, isCreator }: UserMarketCardProps) {
-  const router = useRouter();
+export default function UserMarketCard({
+  marketLabel,
+  userAddress,
+  isCreator,
+}: UserMarketCardProps) {
+  console.log("Rendering UserMarketCard", {
+    marketLabel,
+    userAddress,
+    isCreator,
+  });
   const { market, isLoading } = useHakiContract(marketLabel);
-  const [isWithdrawing, setIsWithdrawing] = useState(false);
-
-  // Mock user balance - in production, fetch from Yellow Network or contract
-  const userBalance = useMemo(() => {
-    // Random balance between 0-1000 for demo
-    return Math.floor(Math.random() * 1000);
-  }, [marketLabel, userAddress]);
 
   // Check if market has expired
   const isExpired = useMemo(() => {
@@ -32,10 +31,10 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
 
   // Determine market status
   const marketStatus = useMemo(() => {
-    if (!market) return { label: 'LOADING', className: 'loading' };
-    if (market.resolved) return { label: 'RESOLVED', className: 'resolved' };
-    if (isExpired) return { label: 'RESOLVING', className: 'resolving' };
-    return { label: 'ACTIVE', className: 'active' };
+    if (!market) return { label: "LOADING", className: "loading" };
+    if (market.resolved) return { label: "RESOLVED", className: "resolved" };
+    if (isExpired) return { label: "RESOLVING", className: "resolving" };
+    return { label: "ACTIVE", className: "active" };
   }, [market, isExpired]);
 
   // Calculate time remaining
@@ -44,7 +43,7 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
     const now = Date.now() / 1000;
     const diff = market.expiry - now;
 
-    if (diff <= 0) return 'EXPIRED';
+    if (diff <= 0) return "EXPIRED";
 
     const days = Math.floor(diff / 86400);
     const hours = Math.floor((diff % 86400) / 3600);
@@ -53,20 +52,20 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
     return `${hours}H`;
   }, [market?.expiry]);
 
-  const handleWithdraw = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsWithdrawing(true);
+  // const handleWithdraw = (e: React.MouseEvent) => {
+  //   e.stopPropagation();
+  //   setIsWithdrawing(true);
 
-    // Mock withdrawal - replace with actual Yellow Network withdrawal
-    setTimeout(() => {
-      console.log('💰 WITHDRAW', {
-        market: marketLabel,
-        amount: userBalance,
-        user: userAddress,
-      });
-      setIsWithdrawing(false);
-    }, 1500);
-  };
+  //   // Mock withdrawal - replace with actual Yellow Network withdrawal
+  //   setTimeout(() => {
+  //     console.log("💰 WITHDRAW", {
+  //       market: marketLabel,
+  //       amount: userBalance,
+  //       user: userAddress,
+  //     });
+  //     setIsWithdrawing(false);
+  //   }, 1500);
+  // };
 
   if (isLoading) {
     return (
@@ -83,8 +82,6 @@ export default function UserMarketCard({ marketLabel, userAddress, isCreator }: 
   if (!market) {
     return null;
   }
-
-  const canWithdraw = userBalance > 0 && (market.resolved || isExpired);
 
   return (
     <article

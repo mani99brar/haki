@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   }
   console.log(marketLabel);
   // 1. Resolve the label to the UUID marketId
-  const { data: market, error: labelError } = await supabase
+  const { data: market } = await supabase
     .from("markets")
     .select("*")
     .eq("question", marketLabel) // Adjust this column name if your label is stored elsewhere
@@ -23,12 +23,9 @@ export async function POST(req: NextRequest) {
     p_market: market?.id,
   });
 
-  const { data: volumeData, error: volumeError } = await supabase.rpc(
-    "get_market_total_volume",
-    {
-      p_market_id: market?.id,
-    },
-  );
+  const { data: volumeData } = await supabase.rpc("get_market_total_volume", {
+    p_market_id: market?.id,
+  });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -48,7 +48,7 @@ export default function MarketPage() {
         }, 800);
       }
     }
-  }, [isTrading, message, error]);
+  }, [isTrading, message, error, showNotification, state]);
 
 
   const handleBetAmountChange = (outcomeId: string, value: string) => {
@@ -73,6 +73,7 @@ export default function MarketPage() {
       );
       showNotification("Market resolution submitted!", "success");
     } catch (err) {
+      console.error("❌ Resolution error:", err);
       showNotification("Resolution failed", "error");
     }
   };
